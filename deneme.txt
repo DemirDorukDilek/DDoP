@@ -1,0 +1,21 @@
+import numpy as np
+import matplotlib as plt
+
+
+S = 4
+N = 2 * S - 1
+
+class Piece:
+
+	def __init__(self, duration:float, bound_cond:np.ndarray):
+		self.duration = None
+		self.bound_cond = None
+		
+	
+
+def compute_Ab(T:float):
+	
+	Ab = np.zeros((2*S,2*S))
+	
+	U = f = np.eye(S)*scipy.special.factorial(np.arange(S)).T
+	
