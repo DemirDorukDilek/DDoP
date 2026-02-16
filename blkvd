@@ -1,0 +1,61 @@
+import numpy as np
+import matplotlib as plt
+import scipy
+S = 4
+N = 2 * S - 1
+
+
+f = scipy.special.factorial(np.arange(S)).T
+i = np.arange(S)[:, None]
+j = np.arange(S)[None, :]
+j_fact = scipy.special.factorial(j)
+
+O = np.zeros((S, S))
+E = np.eye(S)*f
+U = np.eye(S)*1/f
+F = np.zeros((S, S))
+G = scipy.special.factorial(S+j)/scipy.special.factorial(S+j-i)
+
+cond = i<=j
+F[cond] = np.where(i<=j,j_fact,0)[cond]/np.where(i<=j,scipy.special.factorial(j-i),0)[cond]
+
+# def SUM(i,j):
+#     i+=1
+#     j+=1
+#     v = 0
+#     w = 0
+#     for k in range(S-max(i,j)+1):
+#         temp = scipy.special.comb(2*S-k-j-1,S-1,exact=False)
+#         v+=((-1)**k)*scipy.special.comb(S,k+i,exact=False)*temp
+#         w+=scipy.special.comb(S-k-1,i-1,exact=False)*temp
+#     # return np.array([v,w])
+#     return v,w
+
+# # np.array([i,j])
+# v,w = np.vectorize(SUM)(i,j)
+# # V = v/(j_fact*np.where(i%2, 1 ,-1))
+# # W = w/(j_fact*np.where((i+j)%2, -1 ,1))
+
+I = np.broadcast_to(i+1, (S, S))
+J = np.broadcast_to(j+1, (S, S))
+K = np.arange(S + 1)[None, None, :]
+upper = S - np.maximum(I, J)
+mask_k = (K <= upper[..., None])
+n1 = I[..., None] + K
+n2 = (2*S - J[..., None] - K - 1)
+
+mask = (mask_k & (n1 >= 0) & (n1 <= S) & (n2 >= 0) & (n2 >= (S-1)))
+term = ((-1.0) ** K) * scipy.special.comb(S, n1, exact=False) * scipy.special.comb(n2, S-1, exact=False)
+v = np.sum(np.where(mask, term, 0.0), axis=-1)
+V = v/(j_fact*np.where(i%2, 1 ,-1))
+
+
+n1 = I[..., None] - 1
+mask = (mask_k & (n1 >= 0) & (n1 <= S) & (n2 >= 0) & (n2 >= (S-1)))
+term = scipy.special.comb(S-K-1, n1, exact=False) * scipy.special.comb(n2, S-1, exact=False)
+w = np.sum(np.where(mask, term, 0.0), axis=-1)
+W = w/(j_fact*np.where((i+j)%2, -1 ,1))
+
+Af = np.block([[E, O],[F,G]])
+Ab = np.block([[U, O],[V,W]])
+np.matmul(Af,Ab).astype(np.float32)
