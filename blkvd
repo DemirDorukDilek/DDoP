@@ -1,12 +1,10 @@
 
 
-
 import numpy as np
 import matplotlib as plt
 import scipy
 S = 4
 N = 2 * S - 1
-T = 2
 
 def compute_As(T):
     f = scipy.special.factorial(np.arange(S)).T
@@ -66,4 +64,51 @@ def compute_As(T):
     Af = np.block([[E, O],[F,G]])
     Ab = np.block([[U, O],[V,W]])
     return Af,Ab
-# compute_As(2)
+
+def compute_Q(T):
+    i = (np.arange(N+1-S)+S)[:, None]
+    j = (np.arange(N+1-S)+S)[None , :]
+    temp = i+j-2*S+1
+    Qbr = np.power(T,temp)/temp*scipy.special.factorial(i)/scipy.special.factorial(i-4)*scipy.special.factorial(j)/scipy.special.factorial(j-4)
+    Q = np.zeros((N+1,N+1))
+    Q[N-S+1:,N-S+1:] = Qbr
+    return Q
+
+Ts = [0.5,1.0,2.0,5.0]
+D = np.zeros((S-1,S))
+D[:,1:] = np.eye(S-1)
+M = len(Ts)
+
+Afs,Abs,Qs,Hs = [],[],[],[]
+GAMAs,LAMBDAs,PHIs,OMEGAs=[],[],[],[]
+
+Mm = np.zeros(((S-1)*(M-1),(S-1)*(M-1)))
+for loop,T in enumerate(Ts):
+    Af,Ab = compute_As(T)
+    Q = compute_Q(T)
+    H = Ab.T@Q
+    Afs.append(Af)
+    Abs.append(Ab)
+    Qs.append(Q)
+    Hs.append(H)
+    
+    GAMA = H[:S,:S]
+    LAMBDA = H[:S,S:]
+    PHI = H[S:,:S]
+    OMEGA = H[S:,S:]
+    
+    GAMAs.append(GAMA)
+    LAMBDAs.append(LAMBDA)
+    PHIs.append(PHI)
+    OMEGAs.append(OMEGA)
+    
+
+for i in range(M-3):
+    x = np.block([[D@(OMEGAs[i]+GAMAs[i+1])@D.T, D@LAMBDAs[i]@D.T], [D@PHIs[i]@D.T, np.zeros(((S-1),(S-1)))]])
+    Mm[2*(S-1)*i:2*(S-1)*(i+1) , 2*(S-1)*i:2*(S-1)*(i+1)] = x
+Mm[-(S-1):,-(S-1):] = D@(OMEGAs[M-2]+GAMAs[M-1])@D.T
+
+# AF = scipy.linalg.block_diag(*Afs)
+# AB = scipy.linalg.block_diag(*Abs)
+# Qepsilon = scipy.linalg.block_diag(*Qs)
+# Hepsilon = scipy.linalg.block_diag(*Hs)
