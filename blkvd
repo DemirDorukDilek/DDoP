@@ -1,3 +1,4 @@
+from typing_extensions import Hashable
 
 
 import numpy as np
@@ -88,8 +89,8 @@ def BandedPLU(M, b, block_size):
     return x
 
 
-Ts = [0.5,1.0,2.0,5.0]
-checkpoints = [1,2,3,4,5]
+Ts = [1,1]
+checkpoints = [0,1,2]
 D = np.zeros((S-1,S))
 D[:,1:] = np.eye(S-1)
 M = len(Ts)
@@ -125,12 +126,13 @@ kappa = [np.array([x]+[0]*(S-1)) for x in checkpoints]
 b = np.zeros(((S-1)*(M-1)))
 for i in range(M-1):
     if i < M-2:
-        x = np.block([[D@(OMEGAs[i]+GAMAs[i+1])@D.T, D@LAMBDAs[i]@D.T], [D@PHIs[i]@D.T, np.zeros(((S-1),(S-1)))]])
+        x = np.block([[D@(OMEGAs[i]+GAMAs[i+1])@D.T, D@LAMBDAs[i+1]@D.T], [D@PHIs[i+1]@D.T, np.zeros(((S-1),(S-1)))]])
         Mm[(S-1)*i:(S-1)*(i+2) , (S-1)*i:(S-1)*(i+2)] = x
     
     b[(S-1)*i:(S-1)*(i+1)] = (-D@(PHIs[i]@kappa[i] + (OMEGAs[i]+GAMAs[i+1])@kappa[i+1] + LAMBDAs[i]@kappa[i+2]))
         
 Mm[-(S-1):,-(S-1):] = D@(OMEGAs[M-2]+GAMAs[M-1])@D.T
+
 b = b[:,None]
 dtildastar = BandedPLU(Mm,b,S-1)
 
@@ -139,16 +141,11 @@ for i in range(M-1):
     B[(i+1)*S+1:(i+1)*S+1+S-1 , (S-1)*i:(S-1)*(i+1)] = np.eye(S-1)
 
 P = np.zeros(((M+1)*S,M*2*S))
-print(P.shape)
-print(S,M)
 for i in range(M):
     P[i*S:i*S+(2*S) , (2*S)*i:(2*S)*(i+1)] = np.eye(2*S)
 P = P.T
-
-Bdt = B@dtildastar
-nP = d+Bdt
-P@nP
-
+dstar = P@(d+(B@dtildastar))
+dstar
 
 # AF = scipy.linalg.block_diag(*Afs)
 # AB = scipy.linalg.block_diag(*Abs)
