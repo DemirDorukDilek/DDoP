@@ -1,13 +1,10 @@
-from typing_extensions import Hashable
-
-
 import numpy as np
 import matplotlib as plt
 import scipy
-S = 4
-N = 2 * S - 1
 
-def compute_As(T):
+# ================================================= Structural Functions =================================================
+
+def compute_As(T,S):
     f = scipy.special.factorial(np.arange(S)).T
     i = np.arange(S)[:, None]
     j = np.arange(S)[None, :]
@@ -25,22 +22,6 @@ def compute_As(T):
     cond = i<=j
     F[cond] = np.where(cond,j_fact,0)[cond]/np.where(cond,scipy.special.factorial(j-i),0)[cond]*np.where(cond,np.power(T,njmi),0)[cond]
 
-    # def SUM(i,j):
-    #     i+=1
-    #     j+=1
-    #     v = 0
-    #     w = 0
-    #     for k in range(S-max(i,j)+1):
-    #         temp = scipy.special.comb(2*S-k-j-1,S-1,exact=False)
-    #         v+=((-1)**k)*scipy.special.comb(S,k+i,exact=False)*temp
-    #         w+=scipy.special.comb(S-k-1,i-1,exact=False)*temp
-    #     # return np.array([v,w])
-    #     return v,w
-
-    # # np.array([i,j])
-    # v,w = np.vectorize(SUM)(i,j)
-    # # V = v/(j_fact*np.where(i%2, 1 ,-1))
-    # # W = w/(j_fact*np.where((i+j)%2, -1 ,1))
 
     I = np.broadcast_to(i+1, (S, S))
     J = np.broadcast_to(j+1, (S, S))
@@ -66,7 +47,7 @@ def compute_As(T):
     Ab = np.block([[U, O],[V,W]])
     return Af,Ab
 
-def compute_Q(T):
+def compute_Q(T,N,S):
     i = (np.arange(N+1-S)+S)[:, None]
     j = (np.arange(N+1-S)+S)[None , :]
     temp = i+j-2*S+1
@@ -74,6 +55,27 @@ def compute_Q(T):
     Q = np.zeros((N+1,N+1))
     Q[N-S+1:,N-S+1:] = Qbr
     return Q
+
+def compute_dQdT(T,N,S):
+    i = (np.arange(N+1-S)+S)[:, None]
+    j = (np.arange(N+1-S)+S)[None , :]
+    temp = i+j-2*S
+    dQdTbr = np.power(T,temp)*scipy.special.factorial(i)/scipy.special.factorial(i-4)*scipy.special.factorial(j)/scipy.special.factorial(j-4)
+    dQdT = np.zeros((N+1,N+1))
+    dQdT[N-S+1:,N-S+1:] = dQdTbr
+    return dQdT
+
+def compute_AbDot(T,V,W,S):
+    i = np.arange(S)[:, None]
+    j = np.arange(S)[None, :]
+    O = np.zeros((S, S))
+    I = np.broadcast_to(i+1, (S, S))
+    J = np.broadcast_to(j+1, (S, S))
+
+    dV = V*(J-S-I)/T
+    dW = W*(J-S-I)/T
+    AbDot = np.block([[O, O],[dV,dW]])
+    return AbDot
 
 def BandedPLU(M, b, block_size):
     n = M.shape[0]
@@ -89,65 +91,117 @@ def BandedPLU(M, b, block_size):
     return x
 
 
-Ts = [1,1]
-checkpoints = [0,1,2]
-D = np.zeros((S-1,S))
-D[:,1:] = np.eye(S-1)
-M = len(Ts)
 
-d = np.zeros((S*len(checkpoints),1))
-for loop,i in enumerate(checkpoints):
-    d[loop*S,0] = i
 
-Afs,Abs,Qs,Hs = [],[],[],[]
-GAMAs,LAMBDAs,PHIs,OMEGAs=[],[],[],[]
+# ================================================= Algorithmic Functions =================================================
 
-Mm = np.zeros(((S-1)*(M-1),(S-1)*(M-1)))
-for loop,T in enumerate(Ts):
-    Af,Ab = compute_As(T)
-    Q = compute_Q(T)
+def init(Ts,checkpoints,S):
+    N = 2 * S -1
+    D = np.zeros((S-1,S))
+    D[:,1:] = np.eye(S-1)
+    M = len(Ts)
+    dconst = np.zeros((S*len(checkpoints),1))
+    for loop,i in enumerate(checkpoints):
+        dconst[loop*S,0] = i
+    Mm = np.zeros(((S-1)*(M-1),(S-1)*(M-1)))
+    kappa = [np.array([x]+[0]*(S-1)) for x in checkpoints]
+
+    return N,D,M,dconst,Mm,kappa
+
+def construct_block_matries(T,N,S):
+    Af,Ab = compute_As(T,S)
+    Q = compute_Q(T,N,S)
     H = Ab.T@Q@Ab
-    Afs.append(Af)
-    Abs.append(Ab)
-    Qs.append(Q)
-    Hs.append(H)
     
     GAMA = H[:S,:S]
     LAMBDA = H[:S,S:]
     PHI = H[S:,:S]
     OMEGA = H[S:,S:]
-    
-    GAMAs.append(GAMA)
-    LAMBDAs.append(LAMBDA)
-    PHIs.append(PHI)
-    OMEGAs.append(OMEGA)
-    
-kappa = [np.array([x]+[0]*(S-1)) for x in checkpoints]
-b = np.zeros(((S-1)*(M-1)))
-for i in range(M-1):
-    if i < M-2:
-        x = np.block([[D@(OMEGAs[i]+GAMAs[i+1])@D.T, D@LAMBDAs[i+1]@D.T], [D@PHIs[i+1]@D.T, np.zeros(((S-1),(S-1)))]])
-        Mm[(S-1)*i:(S-1)*(i+2) , (S-1)*i:(S-1)*(i+2)] = x
-    
-    b[(S-1)*i:(S-1)*(i+1)] = (-D@(PHIs[i]@kappa[i] + (OMEGAs[i]+GAMAs[i+1])@kappa[i+1] + LAMBDAs[i]@kappa[i+2]))
+    return Af,Ab,Q,H,GAMA,LAMBDA,PHI,OMEGA
+
+def construct_lin_eq(Mm,GAMAs,LAMBDAs,PHIs,OMEGAs,kappa,M,D,S):
+    b = np.zeros(((S-1)*(M-1)))
+    for i in range(M-1):
+        if i < M-2:
+            x = np.block([[D@(OMEGAs[i]+GAMAs[i+1])@D.T, D@LAMBDAs[i+1]@D.T], [D@PHIs[i+1]@D.T, np.zeros(((S-1),(S-1)))]])
+            Mm[(S-1)*i:(S-1)*(i+2) , (S-1)*i:(S-1)*(i+2)] = x
         
-Mm[-(S-1):,-(S-1):] = D@(OMEGAs[M-2]+GAMAs[M-1])@D.T
+        b[(S-1)*i:(S-1)*(i+1)] = (-D@(PHIs[i]@kappa[i] + (OMEGAs[i]+GAMAs[i+1])@kappa[i+1] + LAMBDAs[i]@kappa[i+2]))
+            
+    Mm[-(S-1):,-(S-1):] = D@(OMEGAs[M-2]+GAMAs[M-1])@D.T
+    return Mm,b[:,None]
 
-b = b[:,None]
-dtildastar = BandedPLU(Mm,b,S-1)
+def compute_dstar(Mm,b,dconst,M,S):
+    dtildastar = BandedPLU(Mm,b,S-1)
 
-B = np.zeros(((M+1)*S,(M-1)*(S-1)))
-for i in range(M-1):
-    B[(i+1)*S+1:(i+1)*S+1+S-1 , (S-1)*i:(S-1)*(i+1)] = np.eye(S-1)
+    B = np.zeros(((M+1)*S,(M-1)*(S-1)))
+    for i in range(M-1):
+        B[(i+1)*S+1:(i+1)*S+1+S-1 , (S-1)*i:(S-1)*(i+1)] = np.eye(S-1)
 
-P = np.zeros(((M+1)*S,M*2*S))
-for i in range(M):
-    P[i*S:i*S+(2*S) , (2*S)*i:(2*S)*(i+1)] = np.eye(2*S)
-P = P.T
-dstar = P@(d+(B@dtildastar))
-dstar
+    P = np.zeros(((M+1)*S,M*2*S))
+    for i in range(M):
+        P[i*S:i*S+(2*S) , (2*S)*i:(2*S)*(i+1)] = np.eye(2*S)
+    P = P.T
+    return P@(dconst+(B@dtildastar))
+    
+def compute_dJdT(Tidx,Ts,Qs,dstar,Abs,N,S):
+    T = Ts[Tidx]
+    Q = Qs[Tidx]
+    # Af = Afs[Tidx]
+    d = dstar[2*S*Tidx:2*S*(Tidx+1)]
+    c = Abs[Tidx]@d
+    dQdT = compute_dQdT(T,N,S)
+    AbDot = compute_AbDot(T,Abs[Tidx][S:,:S],Abs[Tidx][S:,S:],S)
+    
+    term1 = c.T @ dQdT @ c
 
-# AF = scipy.linalg.block_diag(*Afs)
-# AB = scipy.linalg.block_diag(*Abs)
-# Qepsilon = scipy.linalg.block_diag(*Qs)
-# Hepsilon = scipy.linalg.block_diag(*Hs)
+    dJdc = 2 * Q @ c
+    term2 = dJdc.T @ AbDot @ d # dJdc.T @ AbDot @ Af @ c aynı şey
+    return term1 + term2
+
+def compute_dJdq(Tidx,Ts,Qs,dstar,Abs,S):
+    T = Ts[Tidx]
+    Q = Qs[Tidx]
+    d = dstar[2*S*Tidx:2*S*(Tidx+1)]
+    dp1 = dstar[2*S*(Tidx+1):2*S*(Tidx+2)]
+    c = Abs[Tidx]@d
+    cp1 = Abs[Tidx+1]@dp1
+    
+    dJdc = 2 * Q @ c
+    dJdcp1 = 2 * Q @ cp1
+    
+    eye = np.eye(2*S)
+
+    term1 = dJdc.T @ Abs[Tidx] @ eye[:,S+1]
+    term2 = dJdcp1.T @ Abs[Tidx+1] @ eye[:,1]
+    return term1 + term2
+
+
+def main(Ts,checkpoints,S):
+    N,D,M,dconst,Mm,kappa = init(Ts,checkpoints,S)
+
+    Afs,Abs,Qs,Hs = [],[],[],[]
+    GAMAs,LAMBDAs,PHIs,OMEGAs=[],[],[],[]
+
+    for T in Ts:
+        Af,Ab,Q,H,GAMA,LAMBDA,PHI,OMEGA = construct_block_matries(T,N,S)
+        Afs.append(Af)
+        Abs.append(Ab)
+        Qs.append(Q)
+        Hs.append(H)
+        GAMAs.append(GAMA)
+        LAMBDAs.append(LAMBDA)
+        PHIs.append(PHI)
+        OMEGAs.append(OMEGA)
+
+    Mm,b = construct_lin_eq(Mm,GAMAs,LAMBDAs,PHIs,OMEGAs,kappa,M,D,S)
+    dstar = compute_dstar(Mm,b,dconst,M,S)
+
+    LdJdT = []
+    LdJdq = []
+    for i in range(M):
+        LdJdT.append(compute_dJdT(i,Ts,Qs,dstar,Abs,N,S).item())
+        if i < M-1:
+            LdJdq.append(compute_dJdq(i,Ts,Qs,dstar,Abs,S).item())
+
+main([1,1],[0,1,2],4)
