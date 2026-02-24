@@ -126,7 +126,7 @@ def construct_lin_eq(Mm,GAMAs,LAMBDAs,PHIs,OMEGAs,kappa,M,D,S):
             x = np.block([[D@(OMEGAs[i]+GAMAs[i+1])@D.T, D@LAMBDAs[i+1]@D.T], [D@PHIs[i+1]@D.T, np.zeros(((S-1),(S-1)))]])
             Mm[(S-1)*i:(S-1)*(i+2) , (S-1)*i:(S-1)*(i+2)] = x
         
-        b[(S-1)*i:(S-1)*(i+1)] = (-D@(PHIs[i]@kappa[i] + (OMEGAs[i]+GAMAs[i+1])@kappa[i+1] + LAMBDAs[i]@kappa[i+2]))
+        b[(S-1)*i:(S-1)*(i+1)] = (-D@(PHIs[i]@kappa[i] + (OMEGAs[i]+GAMAs[i+1])@kappa[i+1] + LAMBDAs[i+1]@kappa[i+2]))
             
     Mm[-(S-1):,-(S-1):] = D@(OMEGAs[M-2]+GAMAs[M-1])@D.T
     return Mm,b[:,None]
