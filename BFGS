@@ -4,9 +4,6 @@ import scipy.special
 
 
 
-akame = []
-
-
 class DDoP:
 
     def __init__(self,Ts,checkpoints,fix_times=False,fix_waypoints=False,S=4):
@@ -130,6 +127,9 @@ class DDoP:
             inner = x[idx:idx+self.M-1]
             self.checkpoints = np.concatenate([[self.checkpoints[0]], inner, [self.checkpoints[-1]]])
             self.kappa = [np.array([p]+[0]*(self.S-1)) for p in self.checkpoints]
+            self.dconst = np.zeros((self.S*len(self.checkpoints),1))
+            for loop,i in enumerate(self.checkpoints):
+                self.dconst[loop*self.S,0] = i
 
 
     
@@ -172,5 +172,5 @@ class DDoP:
 
         return self.Ts,self.checkpoints
 
-DDoP([1,1],[0,1,2],False,False).run()  
+DDoP([1,1],[0,1,2],False,False).run()
 
