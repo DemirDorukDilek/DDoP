@@ -1,7 +1,9 @@
 import numpy as np
 import matplotlib as plt
 import scipy
- 
+from scipy.optimize import minimize
+import scipy.special
+
 def compute_As(T,S):
     f = scipy.special.factorial(np.arange(S)).T
     i = np.arange(S)[:, None]

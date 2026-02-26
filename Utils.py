@@ -1,4 +1,6 @@
 import matplotlib.pyplot as plt
+from scipy.optimize import minimize
+import scipy.special
 
 def visualize_trajectory_2d(opt, Ts, checkpoints_x, checkpoints_y):
     """2D trajectory çiz"""

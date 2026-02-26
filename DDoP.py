@@ -3,6 +3,8 @@ from Structural import *
 import numpy as np
 import matplotlib as plt
 import scipy
+from scipy.optimize import minimize
+import scipy.special
 
 class DDoP:
 
