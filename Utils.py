@@ -60,3 +60,30 @@ def visualize_trajectory_2d(opt, Ts, checkpoints_x, checkpoints_y):
 
     plt.tight_layout()
     plt.show()
+
+def polygon_to_polyhedron(vertices):
+    vertices = np.array(vertices, dtype=float)
+    n = len(vertices)
+    
+    A = []
+    b = []
+    
+    for i in range(n):
+        p1 = vertices[i]
+        p2 = vertices[(i + 1) % n]
+        
+        # Kenar vektörü
+        edge = p2 - p1
+        
+        # Normal vektör (içe dönük) - CCW için: edge'in SAĞ tarafı
+        # Sağa 90° döndürme: (x, y) → (y, -x)
+        normal = np.array([edge[1], -edge[0]])
+        norm = np.linalg.norm(normal)
+        if norm > 1e-10:
+            normal = normal / norm
+        
+        # Yarı-düzlem: normal @ x ≤ normal @ p1
+        A.append(normal)
+        b.append(np.dot(normal, p1))
+    
+    return np.array(A),np.array(b)
