@@ -1,5 +1,5 @@
 import os
-if not os.path.exists("git"):
+if not os.path.exists("git/main.py"):
     !rm -rfd sample_data
     !rm -rfd git
     !git clone --single-branch --branch Util https://github.com/DemirDorukDilek/DDoP git
@@ -10,7 +10,7 @@ if not os.path.exists("git"):
     if top_level_container_dir not in sys.path:
         sys.path.insert(0, top_level_container_dir)
 
-from Utils import visualize_trajectory_2d
+from Utils import visualize_trajectory_2d,polygon_to_polyhedron
 from DDoP import DDoP
 
 
@@ -40,6 +40,8 @@ class DDoPnD:
         self.rho_a = 128.0
         self.v_max = 4.0
         self.a_max = 5.0
+
+        self.pakka = 1.0
 
     def _unpack(self,x):
         idx = 0
@@ -216,6 +218,34 @@ class DDoPnD:
         grad_q += grad_q_a
 
         return grad_T,grad_q
+    
+    def J_F(self):
+        J_F = 0
+        for i in range(1,self.M):
+            q_i = self.waypoints[i]
+            for j in (i-1, i):
+                A_j,b_j = self.polyhedra[j]
+                slack = b_j - A_j @ q_i
+                if np.any((slack)<=0):
+                    return float("inf")
+                J_F = self.pakka * np.sum(np.log(slack))
+        return J_F
+    
+    def grad_J_F(self):
+        grad_q = np.zeros((self.dim, self.M - 1))
+        for i in range(1,self.M):
+            q_i = self.waypoints[i]
+            grad_q_i = np.zeros(self.dim)
+            for j in (i-1, i):
+                A_j,b_j = self.polyhedra[j]
+                slack = b_j - A_j @ q_i
+                if np.any((slack)<=0):
+                    grad_q_i += 1e10*np.ones(self.dim)
+                else:
+                    grad_q_i +=  self.pakka * A_j.T @ (1.0/slack)
+            grad_q[:,i-1] = grad_q_i
+        return grad_q
+
         
     def J(self, x):
         self._unpack(x)
@@ -226,6 +256,7 @@ class DDoPnD:
             cost+= opt.J(np.array([]))
         
         cost += self.J_D()
+        cost += self.J_F()
         return float(cost)
 
     def grad(self, x):
@@ -242,6 +273,8 @@ class DDoPnD:
         grad_J_D_T,grad_J_D_q = self.grad_J_D()
         grad_T += grad_J_D_T
         grad_q += grad_J_D_q
+
+        grad_q += self.grad_J_F()
 
         grad = []
         if not self.fix_times:
@@ -278,16 +311,56 @@ class DDoPnD:
         return self.Ts, self.waypoints, result.fun
 
 
-
-w = [
-    np.array((0,0)),
-    np.array((0,1)),
-    np.array((1,1)),
-    np.array((1,0)),
-    np.array((0,0)),
+waypoints = [
+    (0, 0), # q₀: Başlangıç
+    (1.5, 0.5), # q₁: İlk dönüş
+    (2.5, 1.5), # q₂: Engeli geç
+    (3.5, 0.5), # q₃: İkinci dönüş
+    (5, 1), # q₄: Bitiş
 ]
-ww =[np.array(dim) for dim in zip(*w)]
-opt = DDoPnD([1.0]*(len(w)-1),w,False,True,3)
+
+# Polyhedra: Her piece için güvenli bölge (CCW sıralı köşeler)
+polyhedra = [
+    # P₀: Başlangıç bölgesi (geniş alan)
+    polygon_to_polyhedron([
+        (-0.5, -0.5),
+        (2, -0.5),
+        (2, 1.2),
+        (-0.5, 1.2)
+    ]),
+    
+    # P₁: Dar geçit (engelin solundan)
+    polygon_to_polyhedron([
+        (1, 0),
+        (3, 0),
+        (3.2, 2),
+        (1.2, 2)
+    ]),
+    
+    # P₂: Engel üstü bölge
+    polygon_to_polyhedron([
+        (2, 1),
+        (4, 0.5),
+        (4.2, 2.2),
+        (2, 2.2)
+    ]),
+    
+    # P₃: Bitiş bölgesi
+    polygon_to_polyhedron([
+        (3, -0.3),
+        (5.5, -0.3),
+        (5.5, 1.8),
+        (3, 1.8)
+    ]),
+]
+
+# Engeller (sadece görselleştirme için)
+obstacles = [
+    {'center': (2.5, 0.3), 'radius': 0.4},
+    {'center': (1.8, 1.8), 'radius': 0.3},
+]
+
+opt = DDoPnD([1.0]*(len(waypoints)-1),waypoints,False,True,3)
 T,way,C = opt.run()
 print(T)
 print(way)
