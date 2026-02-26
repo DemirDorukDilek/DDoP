@@ -1,4 +1,5 @@
-from Stu
+from Structural import *
+
 import numpy as np
 import matplotlib as plt
 import scipy

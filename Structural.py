@@ -1,7 +1,6 @@
 import numpy as np
 import matplotlib as plt
 import scipy
-from Structural import *
  
 def compute_As(T,S):
     f = scipy.special.factorial(np.arange(S)).T
