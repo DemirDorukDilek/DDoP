@@ -1,4 +1,6 @@
-import matplotlib.pyplot as plt
+import numpy as np
+import matplotlib as plt
+import scipy
 from scipy.optimize import minimize
 import scipy.special
 
