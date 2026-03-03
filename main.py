@@ -1,16 +1,4 @@
-import os
-if not os.path.exists("git/main.py"):
-    !rm -rfd sample_data
-    !rm -rfd git
-    !git clone --single-branch --branch Util https://github.com/DemirDorukDilek/DDoP git
-    import sys
-
-    top_level_container_dir = "git/"
-
-    if top_level_container_dir not in sys.path:
-        sys.path.insert(0, top_level_container_dir)
-
-from Utils import visualize_trajectory_2d,polygon_to_polyhedron
+from Utils import visualize_trajectory_2d,polygon_to_polyhedron,visualize_state,visualize_results_2d
 from DDoP import DDoP
 
 
@@ -23,7 +11,8 @@ import scipy.special
 
 class DDoPnD:
 
-    def __init__(self,Ts,waypoints,fix_times=False,fix_waypoints=False,S=4):
+    def __init__(self,Ts,waypoints,polyhedra,fix_times=False,fix_waypoints=False,S=4):
+        self.save = Ts.copy(),waypoints.copy(),polyhedra.copy()
         self.Ts = Ts
         self.waypoints = waypoints
         self.fix_times = fix_times
@@ -33,7 +22,7 @@ class DDoPnD:
         self.dim = len(self.dims)
         self.M = len(Ts)
         self.opt = [DDoP(Ts.copy(),dim,True,True,S) for dim in self.dims]
-
+        self.polyhedra = polyhedra
 
         self.rho_t = 32.0
         self.rho_v = 128.0
@@ -42,6 +31,11 @@ class DDoPnD:
         self.a_max = 5.0
 
         self.pakka = 1.0
+
+        self.iter = 0
+    
+    def reset(self):
+        self.__init__(*self.save,self.fix_times,self.fix_waypoints,self.S)
 
     def _unpack(self,x):
         idx = 0
@@ -54,6 +48,8 @@ class DDoPnD:
                 self.dims[i] = np.concatenate([[self.dims[i][0]], x[idx:idx+n_inner], [self.dims[i][-1]]])
                 idx = idx+n_inner
             self.waypoints = np.column_stack(self.dims)
+
+
 
     def _update_sub_optimizers(self):
         for idx,opt in enumerate(self.opt):
@@ -79,56 +75,56 @@ class DDoPnD:
         q_next = self.waypoints[i + 1]
         T_prev = self.Ts[i - 1]
         T_next = self.Ts[i]
-        
+
         v_in = (q_curr - q_prev) / T_prev
         v_out = (q_next - q_curr) / T_next
         T_sum = T_prev + T_next
-        
+
         return 2.0 * (v_out - v_in) / T_sum
 
     def _compute_gradJ_D_v(self):
         """
         v_i = (q_{i+1} - q_{i-1}) / (T_{i-1} + T_i)
         ||v_i||² = ||q_{i+1} - q_{i-1}||² / (T_{i-1} + T_i)²
-        
+
         J_v = ρ_v * Σ g(||v_i||² - v_max²)
         """
         grad_T = np.zeros(self.M)
         grad_q = np.zeros((self.dim, self.M - 1))
-        
+
         for i in range(1, self.M):
             q_prev = self.waypoints[i - 1]
             q_curr = self.waypoints[i]
             q_next = self.waypoints[i + 1]
             T_sum = self.Ts[i - 1] + self.Ts[i]
             T_sum_sq = np.power(T_sum,2)
-            
+
             diff = q_next - q_prev
             diff_sq = np.sum(np.power(diff,2))
             v_sq = diff_sq /T_sum_sq
-            
+
             gp = self.dgdx(v_sq - np.power(self.v_max, 2))
-            
+
             if gp > 0:
                 # ∂||v||²/∂T = -2 * ||diff||² / T_sum³
                 dv_sq_dT = -2.0 * diff_sq / np.power(T_sum,3)
-                
+
                 # ∂J_v/∂T_{i-1} and ∂J_v/∂T_i
                 grad_T[i - 1] += self.rho_v * gp * dv_sq_dT
                 grad_T[i] += self.rho_v * gp * dv_sq_dT
-                
+
                 # ∂||v||²/∂q_{i-1} = -2 * diff / T_sum²
                 # ∂||v||²/∂q_{i+1} = +2 * diff / T_sum²
                 dv_sq_dq = 2.0 * diff / T_sum_sq
-                
+
                 # if q_{i-1} inner point
                 if i - 1 >= 1:
                     grad_q[:, i - 2] += self.rho_v * gp * (-dv_sq_dq)
-                
+
                 # if q_{i+1} inner point
                 if i + 1 <= self.M - 1:
                     grad_q[:, i] += self.rho_v * gp * dv_sq_dq
-        
+
         return grad_T, grad_q
 
     def _compute_gradJ_D_a(self):
@@ -141,7 +137,7 @@ class DDoPnD:
         """
         grad_T = np.zeros(self.M)
         grad_q = np.zeros((self.dim, self.M - 1))
-        
+
         for i in range(1, self.M):
             q_prev = self.waypoints[i - 1]
             q_curr = self.waypoints[i]
@@ -150,48 +146,48 @@ class DDoPnD:
             T_next = self.Ts[i]
             T_sum = T_prev + T_next
             T_sum_sq = np.power(T_sum,2)
-            
+
             v_in = (q_curr - q_prev) / T_prev
             v_out = (q_next - q_curr) / T_next
             a = 2.0 * (v_out - v_in) / T_sum
             a_sq = np.sum(np.power(a, 2))
-            
+
             gp = self.dgdx(a_sq - self.a_max ** 2)
-            
+
             if gp > 0:
                 # ∂a/∂T_{i-1} (T_prev)
                 # a = 2/T_sum * (v_out - v_in)
                 # ∂a/∂T_prev = -2/T_sum² * (v_out - v_in) + 2/T_sum * (q_curr - q_prev)/T_prev²
                 da_dT_prev = -2.0 * (v_out - v_in) / T_sum_sq + 2.0 * (q_curr - q_prev) / (T_sum * np.power(T_prev, 2))
-                
+
                 # ∂a/∂T_i (T_next)
-                da_dT_next = -2.0 * (v_out - v_in) / T_sum_sq - 2.0 * (q_next - q_curr) / (T_sum * np.power(T_next, 2))
-                
+                da_dT_next = 2.0 * (v_out - v_in) / T_sum_sq - 2.0 * (q_next - q_curr) / (T_sum * np.power(T_next, 2))
+
                 # ∂||a||²/∂T = 2 * a · ∂a/∂T
                 grad_T[i - 1] += self.rho_a * gp * 2.0 * np.dot(a, da_dT_prev)
                 grad_T[i] += self.rho_a * gp * 2.0 * np.dot(a, da_dT_next)
-                
+
                 # ∂a/∂q_{i-1} = 2/(T_sum * T_prev)
                 da_dq_prev = 2.0 / (T_sum * T_prev)
-                
+
                 # ∂a/∂q_i = -2/T_sum * (1/T_prev + 1/T_next)
                 da_dq_curr = -2.0 / T_sum * (1.0 / T_prev + 1.0 / T_next)
-                
+
                 # ∂a/∂q_{i+1} = -2/(T_sum * T_next)
                 da_dq_next = -2.0 / (T_sum * T_next)
-                
+
                 # ∂||a||²/∂q = 2 * a · ∂a/∂q = 2 * a * scalar
                 # q_{i-1}
                 if i - 1 >= 1:
                     grad_q[:, i - 2] += self.rho_a * gp * 2.0 * a * da_dq_prev
-                
+
                 # q_i
                 grad_q[:, i - 1] += self.rho_a * gp * 2.0 * a * da_dq_curr
-                
+
                 # q_{i+1}
                 if i + 1 <= self.M - 1:
                     grad_q[:, i] += self.rho_a * gp * 2.0 * a * da_dq_next
-        
+
         return grad_T, grad_q
 
     def J_D(self):
@@ -201,24 +197,24 @@ class DDoPnD:
         for i in range(1,self.M):
             J_D_v += self.g(np.sum(np.power(self._compute_V(i),2))-np.power(self.v_max,2))
             J_D_a += self.g(np.sum(np.power(self._compute_a(i),2))-np.power(self.a_max,2))
-        return self.rho_t*J_D_t + self.rho_v*J_D_v + self.rho_a
+        return self.rho_t*J_D_t + self.rho_v*J_D_v + self.rho_a*J_D_a
 
     def grad_J_D(self):
         grad_T = np.zeros(self.M)
         grad_q = np.zeros((self.dim, self.M - 1))
 
         grad_T += self.rho_t
-        
+
         grad_T_v, grad_q_v = self._compute_gradJ_D_v()
         grad_T += grad_T_v
         grad_q += grad_q_v
-        
+
         grad_T_a, grad_q_a = self._compute_gradJ_D_a()
         grad_T += grad_T_a
         grad_q += grad_q_a
 
         return grad_T,grad_q
-    
+
     def J_F(self):
         J_F = 0
         for i in range(1,self.M):
@@ -227,10 +223,12 @@ class DDoPnD:
                 A_j,b_j = self.polyhedra[j]
                 slack = b_j - A_j @ q_i
                 if np.any((slack)<=0):
-                    return float("inf")
-                J_F = self.pakka * np.sum(np.log(slack))
+                    # print("inf",q_i,b_j,A_j)
+                    return 1e10
+
+                J_F -= self.pakka * np.sum(np.log(slack))
         return J_F
-    
+
     def grad_J_F(self):
         grad_q = np.zeros((self.dim, self.M - 1))
         for i in range(1,self.M):
@@ -240,26 +238,33 @@ class DDoPnD:
                 A_j,b_j = self.polyhedra[j]
                 slack = b_j - A_j @ q_i
                 if np.any((slack)<=0):
+                    # print("grad_inf")
                     grad_q_i += 1e10*np.ones(self.dim)
                 else:
-                    grad_q_i +=  self.pakka * A_j.T @ (1.0/slack)
+                    grad_q_i +=  self.pakka * (A_j.T @ (1.0/slack))
             grad_q[:,i-1] = grad_q_i
         return grad_q
 
-        
+
     def J(self, x):
         self._unpack(x)
         self._update_sub_optimizers()
+        # try:
+        #     plot_trajectory_result(self, self.polyhedra, self.waypoints, [])
+        # except:
+        #     pass
 
         cost = 0.0
         for opt in self.opt:
             cost+= opt.J(np.array([]))
-        
+
         cost += self.J_D()
         cost += self.J_F()
         return float(cost)
 
     def grad(self, x):
+        self._unpack(x)
+        self._update_sub_optimizers()
         grad_T = np.zeros(self.M)
         grad_q = np.zeros((self.dim, self.M - 1))
 
@@ -275,13 +280,15 @@ class DDoPnD:
         grad_q += grad_J_D_q
 
         grad_q += self.grad_J_F()
-
         grad = []
         if not self.fix_times:
             grad.extend(grad_T)
         if not self.fix_waypoints:
             for d in range(self.dim):
                 grad.extend(grad_q[d])
+        # print("iterbound:", self.iter)
+        # print("grad:", grad_q)
+        self.iter+=1
         return np.array(grad)
 
     def run(self):
@@ -304,7 +311,7 @@ class DDoPnD:
             method='L-BFGS-B',
             jac=self.grad,
             bounds=bounds,
-            options={'disp': True, 'maxiter': 100}
+            options={'disp': True, 'maxiter': 1000}
         )
         self._unpack(result.x)
 
@@ -312,46 +319,46 @@ class DDoPnD:
 
 
 waypoints = [
-    (0, 0), # q₀: Başlangıç
-    (1.5, 0.5), # q₁: İlk dönüş
-    (2.5, 1.5), # q₂: Engeli geç
-    (3.5, 0.5), # q₃: İkinci dönüş
-    (5, 1), # q₄: Bitiş
+    np.array((0, 0)), # q₀: Başlangıç
+    np.array((1.5, 0.5)), # q₁: İlk dönüş
+    np.array((2.5, 1.5)), # q₂: Engeli geç
+    np.array((3.0, -1.5)), # q₃: İkinci dönüş
+    np.array((5.25, 1.0)), # q₄: Bitiş
 ]
 
 # Polyhedra: Her piece için güvenli bölge (CCW sıralı köşeler)
-polyhedra = [
+polygons = [
     # P₀: Başlangıç bölgesi (geniş alan)
-    polygon_to_polyhedron([
-        (-0.5, -0.5),
-        (2, -0.5),
-        (2, 1.2),
-        (-0.5, 1.2)
-    ]),
-    
+    [
+        (-0.5, -0.2),
+        (1.6, 0.4),
+        (1.6, 0.6),
+        (-0.5, 0.2)
+    ],
+
     # P₁: Dar geçit (engelin solundan)
-    polygon_to_polyhedron([
-        (1, 0),
-        (3, 0),
-        (3.2, 2),
-        (1.2, 2)
-    ]),
-    
+    [
+        (1.4, 0.4),
+        (3.0, 1),
+        (3.0, 2.5),
+        (1.4, 0.6),
+    ],
+
     # P₂: Engel üstü bölge
-    polygon_to_polyhedron([
-        (2, 1),
-        (4, 0.5),
-        (4.2, 2.2),
-        (2, 2.2)
-    ]),
-    
+    [
+        (2.4, 1.4),
+        (3.0, -2),
+        (4.0, -1.5),
+        (2.4, 1.8)
+    ],
+
     # P₃: Bitiş bölgesi
-    polygon_to_polyhedron([
-        (3, -0.3),
-        (5.5, -0.3),
-        (5.5, 1.8),
-        (3, 1.8)
-    ]),
+    [
+        (2.9, -2),
+        (5.5, -0.5),
+        (5.5, 1.5),
+        (2.9, -1.5)
+    ],
 ]
 
 # Engeller (sadece görselleştirme için)
@@ -360,11 +367,12 @@ obstacles = [
     {'center': (1.8, 1.8), 'radius': 0.3},
 ]
 
-opt = DDoPnD([1.0]*(len(waypoints)-1),waypoints,False,True,3)
+
+opt_waypoint = list(map(np.array,waypoints))
+polyhedra = list(map(polygon_to_polyhedron,polygons))
+opt = DDoPnD([1.2]*(len(waypoints)-1),opt_waypoint,polyhedra,False,False,2)
 T,way,C = opt.run()
 print(T)
 print(way)
 print(C)
-
-ww =[np.array(dim) for dim in zip(*way)]
-visualize_trajectory_2d(opt,T,*ww)
+visualize_results_2d(opt, polyhedra, waypoints, [])
