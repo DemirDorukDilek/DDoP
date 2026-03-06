@@ -141,9 +141,8 @@ def visualize_results_2d(opt, polyhedron, waypoints_init, bounds, obstacles=None
 
     if obstacles:
         for obs in obstacles:
-            from matplotlib.patches import Circle
-            circle = Circle(obs['center'], obs['radius'], color='red', alpha=0.6)
-            ax1.add_patch(circle)
+            ax1.add_patch(MplPolygon(obs.vertices, closed=True,
+                                 fc='gray', ec='black', alpha=0.7, lw=2))
 
     ax1.plot(wp_init[:,0], wp_init[:,1], 'b--', linewidth=1.5,
             alpha=0.5, marker='s', markersize=6, label='Başlangıç')
@@ -406,4 +405,5 @@ def plot_corridors(corridors, waypoints, radii, obstacles, start, goal, bounds, 
     if save_path:
         plt.savefig(save_path, dpi=150, bbox_inches='tight')
     plt.show()
+
 
