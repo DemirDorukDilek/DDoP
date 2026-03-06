@@ -3,6 +3,8 @@ import matplotlib.pyplot as plt
 import scipy
 from scipy.optimize import minimize
 import scipy.special
+from matplotlib.patches import Polygon as MplPolygon
+from scipy.spatial import HalfspaceIntersection, ConvexHull
 
 def visualize_trajectory_2d(opt, Ts, checkpoints_x, checkpoints_y):
     """2D trajectory çiz"""
@@ -359,6 +361,13 @@ def plot_rrt(path, obstacles, start, goal, bounds, save_path=None):
 
 
 def plot_corridors(corridors, waypoints, radii, obstacles, start, goal, bounds, save_path=None):
+    def hpoly_to_vertices(A, b, interior_point):
+        try:
+            hs = HalfspaceIntersection(np.column_stack([A, -b]), interior_point)
+            hull = ConvexHull(hs.intersections)
+            return hs.intersections[hull.vertices]
+        except Exception:
+            return None
     fig, ax = plt.subplots(figsize=(10, 10))
     lower, upper = bounds
     colors = plt.cm.Set2(np.linspace(0, 1, max(len(corridors), 1)))
@@ -397,3 +406,4 @@ def plot_corridors(corridors, waypoints, radii, obstacles, start, goal, bounds, 
     if save_path:
         plt.savefig(save_path, dpi=150, bbox_inches='tight')
     plt.show()
+
