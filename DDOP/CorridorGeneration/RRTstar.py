@@ -1,7 +1,7 @@
 import numpy as np
 from dataclasses import dataclass
-from typing import List, Tuple, Optional
-from Ucorridor import ConvexObstacle, inflate_obstacle
+from typing import Optional
+from .Corridor_Utils import inflate_obstacle
 
 
 @dataclass
@@ -54,7 +54,7 @@ def steer(from_pos, to_pos, step_size):
 
 def rrt_star(start, goal, obstacles, bounds,
              max_iter=3000, step_size=0.5, goal_bias=0.1,
-             goal_tol=0.3, rewire_radius=None, safety_margin=0.1):
+             goal_tol=0.5, rewire_radius=None, safety_margin=0.1):
     dim = len(start)
     lower, upper = bounds
 

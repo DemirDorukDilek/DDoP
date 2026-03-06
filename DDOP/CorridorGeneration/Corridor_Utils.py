@@ -1,7 +1,7 @@
 import numpy as np
 import cvxpy as cp
 from dataclasses import dataclass
-from typing import List, Tuple, Optional
+
 
 @dataclass
 class ConvexObstacle:
@@ -63,13 +63,13 @@ def inflate_obstacle(obstacle, margin):
         inflated.append(v + d / n * margin if n > 1e-10 else v)
     return ConvexObstacle(np.array(inflated))
 
-def intersect_hpoly(h1: HPolyhedron, h2: HPolyhedron) -> HPolyhedron:
+def intersect_hpoly(h1: HPolyhedron, h2: HPolyhedron):
     A = np.vstack([h1.A, h2.A])
     b = np.concatenate([h1.b, h2.b])
     return HPolyhedron(A, b)
 
 
-def chebyshev_center(hpoly: HPolyhedron) -> Optional[np.ndarray]:
+def chebyshev_center(hpoly: HPolyhedron):
     """
     Find Chebyshev center of polytope {x : Ax <= b}.
     This is the point furthest from all walls — the "safest" interior point.

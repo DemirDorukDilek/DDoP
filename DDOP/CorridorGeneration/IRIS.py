@@ -1,8 +1,6 @@
 import numpy as np
 import cvxpy as cp
-from dataclasses import dataclass
-from typing import List, Tuple, Optional
-from Ucorridor import *
+from .Corridor_Utils import *
 
 
 def _compute_hyperplanes(center, obstacles, bounds):

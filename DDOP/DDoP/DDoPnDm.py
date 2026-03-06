@@ -1,10 +1,7 @@
-from DDoPm import DDoP
+from .DDoPm import DDoP
 
 import numpy as np
-import matplotlib.pyplot as plt
-import scipy
 from scipy.optimize import minimize
-import scipy.special
 
 
 class DDoPnD:
