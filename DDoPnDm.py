@@ -1,4 +1,4 @@
-from DDoP import DDoP
+from DDoPm import DDoP
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -9,8 +9,8 @@ import scipy.special
 
 class DDoPnD:
 
-    def __init__(self,Ts,waypoints,polyhedra,rho_t=None,rho_v=None,rho_a=None,pakka=None,fix_times=False,fix_waypoints=False,S=4):
-        self.save = Ts.copy(),waypoints.copy(),polyhedra.copy()
+    def __init__(self,Ts,waypoints,polyhedron,rho_t=None,rho_v=None,rho_a=None,pakka=None,fix_times=False,fix_waypoints=False,S=4):
+        self.save = Ts.copy(),waypoints.copy(),polyhedron.copy()
         self.Ts = Ts
         self.waypoints = waypoints
         self.fix_times = fix_times
@@ -20,7 +20,7 @@ class DDoPnD:
         self.dim = len(self.dims)
         self.M = len(Ts)
         self.opt = [DDoP(Ts.copy(),dim,True,True,S) for dim in self.dims]
-        self.polyhedra = polyhedra
+        self.polyhedron = polyhedron
 
         self.rho_t = 32.0 if rho_t == None else rho_t
         self.rho_v = np.array([128.0]*self.M) if rho_v is None else rho_v
@@ -29,8 +29,6 @@ class DDoPnD:
         self.a_max = 5.0
 
         self.pakka = np.array([1.0]*self.M) if pakka is None else pakka
-
-        self.iter = 0
 
     def reset(self):
         self.__init__(*self.save,self.fix_times,self.fix_waypoints,self.S)
@@ -203,7 +201,7 @@ class DDoPnD:
         for i in range(1,self.M):
             q_i = self.waypoints[i]
             for j in (i-1, i):
-                A_j,b_j = self.polyhedra[j]
+                A_j,b_j = self.polyhedron[j]
                 slack = b_j - A_j @ q_i
                 if np.any((slack)<=0):
                     # print("inf",q_i,b_j,A_j)
@@ -218,7 +216,7 @@ class DDoPnD:
             q_i = self.waypoints[i]
             grad_q_i = np.zeros(self.dim)
             for j in (i-1, i):
-                A_j,b_j = self.polyhedra[j]
+                A_j,b_j = self.polyhedron[j]
                 slack = b_j - A_j @ q_i
                 if np.any((slack)<=0):
                     # print("grad_inf")
@@ -232,10 +230,6 @@ class DDoPnD:
     def J(self, x):
         self._unpack(x)
         self._update_sub_optimizers()
-        # try:
-        #     plot_trajectory_result(self, self.polyhedra, self.waypoints, [])
-        # except:
-        #     pass
 
         cost = 0.0
         for opt in self.opt:
@@ -269,9 +263,6 @@ class DDoPnD:
         if not self.fix_waypoints:
             for d in range(self.dim):
                 grad.extend(grad_q[d])
-        # print("iterbound:", self.iter)
-        # print("grad:", grad_q)
-        self.iter+=1
         return np.array(grad)
 
     def run(self):

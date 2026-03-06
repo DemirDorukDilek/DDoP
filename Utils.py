@@ -61,12 +61,12 @@ def visualize_trajectory_2d(opt, Ts, checkpoints_x, checkpoints_y):
     plt.tight_layout()
     plt.show()
 
-def visualize_results_2d(opt, polyhedra, waypoints_init, obstacles=None):
+def visualize_results_2d(opt, polyhedron, waypoints_init, obstacles=None):
     """
-    3 Plot: XY Trajectory + Polyhedra, X(t), Y(t)
+    3 Plot: XY Trajectory + Polyhedron, X(t), Y(t)
 
     opt: DDoPnD optimizer (optimize edilmiş)
-    polyhedra: [(A, b), (A, b), ...] tuple listesi
+    polyhedron: [(A, b), (A, b), ...] tuple listesi
     waypoints_init: başlangıç waypoint'leri
     obstacles: [{'center': (x,y), 'radius': r}, ...] (opsiyonel)
     """
@@ -142,11 +142,11 @@ def visualize_results_2d(opt, polyhedra, waypoints_init, obstacles=None):
     # Plot
     fig, axes = plt.subplots(1, 3, figsize=(18, 6))
 
-    # --- Plot 1: XY + Polyhedra ---
+    # --- Plot 1: XY + Polyhedron ---
     ax1 = axes[0]
 
-    colors = plt.cm.Set3(np.linspace(0, 1, len(polyhedra)))
-    for idx, (A, b) in enumerate(polyhedra):
+    colors = plt.cm.Set3(np.linspace(0, 1, len(polyhedron)))
+    for idx, (A, b) in enumerate(polyhedron):
         verts = polyhedron_to_vertices(A, b)
         if verts is not None:
             from matplotlib.patches import Polygon
@@ -177,7 +177,7 @@ def visualize_results_2d(opt, polyhedra, waypoints_init, obstacles=None):
     ax1.legend(loc='upper left')
     ax1.set_xlabel('X (m)')
     ax1.set_ylabel('Y (m)')
-    ax1.set_title('XY Trajectory + Polyhedra', fontweight='bold')
+    ax1.set_title('XY Trajectory + Polyhedron', fontweight='bold')
     ax1.autoscale()
     ax1.margins(0.1)
 
@@ -218,11 +218,11 @@ def visualize_results_2d(opt, polyhedra, waypoints_init, obstacles=None):
 
 
 
-def visualize_state(polyhedra, waypoints, obstacles=None):
+def visualize_state(polyhedron, waypoints, obstacles=None):
     """
-    Polyhedra ve waypoint'leri çiz (optimizasyon öncesi)
+    Polyhedron ve waypoint'leri çiz (optimizasyon öncesi)
 
-    polyhedra: [(A, b), (A, b), ...] tuple listesi
+    polyhedron: [(A, b), (A, b), ...] tuple listesi
     waypoints: [(x0,y0), (x1,y1), ...]
     obstacles: [{'center': (x,y), 'radius': r}, ...] (opsiyonel)
     """
@@ -262,9 +262,9 @@ def visualize_state(polyhedra, waypoints, obstacles=None):
     # Plot
     fig, ax = plt.subplots(figsize=(10, 8))
 
-    # Polyhedra
-    colors = plt.cm.Set3(np.linspace(0, 1, len(polyhedra)))
-    for idx, (A, b) in enumerate(polyhedra):
+    # Polyhedron
+    colors = plt.cm.Set3(np.linspace(0, 1, len(polyhedron)))
+    for idx, (A, b) in enumerate(polyhedron):
         verts = polyhedron_to_vertices(A, b)
         if verts is not None:
             from matplotlib.patches import Polygon
@@ -294,7 +294,7 @@ def visualize_state(polyhedra, waypoints, obstacles=None):
     ax.legend(loc='upper left')
     ax.set_xlabel('X (m)')
     ax.set_ylabel('Y (m)')
-    ax.set_title('Polyhedra ve Waypoints', fontweight='bold')
+    ax.set_title('Polyhedron ve Waypoints', fontweight='bold')
     ax.autoscale()
     ax.margins(0.1)
 
