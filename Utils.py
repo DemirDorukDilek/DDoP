@@ -61,7 +61,7 @@ def visualize_trajectory_2d(opt, Ts, checkpoints_x, checkpoints_y):
     plt.tight_layout()
     plt.show()
 
-def visualize_results_2d(opt, polyhedron, waypoints_init, obstacles=None):
+def visualize_results_2d(opt, polyhedron, waypoints_init, bounds, obstacles=None, save_path=None):
     """
     3 Plot: XY Trajectory + Polyhedron, X(t), Y(t)
 
@@ -97,26 +97,7 @@ def visualize_results_2d(opt, polyhedron, waypoints_init, obstacles=None):
 
         return np.array(t_all), np.array(x_all), np.array(y_all)
 
-    # Polyhedron köşeleri bul
-    def polyhedron_to_vertices(A, b, bounds=(-5, 10)):
-        A_bounded = np.vstack([A, [1,0], [-1,0], [0,1], [0,-1]])
-        b_bounded = np.hstack([b, bounds[1], -bounds[0], bounds[1], -bounds[0]])
-
-        n = len(A_bounded)
-        vertices = []
-
-        for i in range(n):
-            for j in range(i+1, n):
-                A_pair = np.array([A_bounded[i], A_bounded[j]])
-                b_pair = np.array([b_bounded[i], b_bounded[j]])
-
-                try:
-                    if np.abs(np.linalg.det(A_pair)) > 1e-10:
-                        vertex = np.linalg.solve(A_pair, b_pair)
-                        if np.all(A_bounded @ vertex <= b_bounded + 1e-10):
-                            vertices.append(vertex)
-                except:
-                    pass
+    
 
         if len(vertices) < 3:
             return None
@@ -147,7 +128,7 @@ def visualize_results_2d(opt, polyhedron, waypoints_init, obstacles=None):
 
     colors = plt.cm.Set3(np.linspace(0, 1, len(polyhedron)))
     for idx, (A, b) in enumerate(polyhedron):
-        verts = polyhedron_to_vertices(A, b)
+        verts = polyhedron_to_vertices(A, b, bounds)
         if verts is not None:
             from matplotlib.patches import Polygon
             poly = Polygon(verts, alpha=0.4, facecolor=colors[idx],
@@ -214,6 +195,8 @@ def visualize_results_2d(opt, polyhedron, waypoints_init, obstacles=None):
     ax3.set_title('Y(t)', fontweight='bold')
 
     plt.tight_layout()
+    if save_path:
+        plt.savefig(save_path, dpi=150, bbox_inches='tight')
     plt.show()
 
 
@@ -328,3 +311,89 @@ def polygon_to_polyhedron(vertices):
         b.append(np.dot(normal, p1))
     
     return np.array(A),np.array(b)
+
+def polyhedron_to_vertices(A, b, bounds):
+    A_bounded = np.vstack([A, [1,0], [-1,0], [0,1], [0,-1]])
+    b_bounded = np.hstack([b, bounds[1], -bounds[0], bounds[1], -bounds[0]])
+
+    n = len(A_bounded)
+    vertices = []
+
+    for i in range(n):
+        for j in range(i+1, n):
+            A_pair = np.array([A_bounded[i], A_bounded[j]])
+            b_pair = np.array([b_bounded[i], b_bounded[j]])
+
+            try:
+                if np.abs(np.linalg.det(A_pair)) > 1e-10:
+                    vertex = np.linalg.solve(A_pair, b_pair)
+                    if np.all(A_bounded @ vertex <= b_bounded + 1e-10):
+                        vertices.append(vertex)
+            except:
+                pass
+
+
+
+def plot_rrt(path, obstacles, start, goal, bounds, save_path=None):
+    fig, ax = plt.subplots(figsize=(10, 10))
+    lower, upper = bounds
+
+    for obs in obstacles:
+        ax.add_patch(MplPolygon(obs.vertices, closed=True,
+                                 fc='gray', ec='black', alpha=0.7, lw=2))
+
+    ax.plot(path[:,0], path[:,1], 'b.-', lw=1.5, alpha=0.6, label=f'RRT* ({len(path)} pts)')
+    ax.plot(*start, 'go', ms=12, zorder=10, label='Start')
+    ax.plot(*goal, 'r*', ms=15, zorder=10, label='Goal')
+
+    ax.set_xlim(lower[0]-0.5, upper[0]+0.5)
+    ax.set_ylim(lower[1]-0.5, upper[1]+0.5)
+    ax.set_aspect('equal')
+    ax.grid(True, alpha=0.3)
+    ax.legend()
+    ax.set_title('RRT* Path')
+    plt.tight_layout()
+    if save_path:
+        plt.savefig(save_path, dpi=150, bbox_inches='tight')
+    plt.show()
+
+
+def plot_corridors(corridors, waypoints, radii, obstacles, start, goal, bounds, save_path=None):
+    fig, ax = plt.subplots(figsize=(10, 10))
+    lower, upper = bounds
+    colors = plt.cm.Set2(np.linspace(0, 1, max(len(corridors), 1)))
+
+    for obs in obstacles:
+        ax.add_patch(MplPolygon(obs.vertices, closed=True,
+                                 fc='gray', ec='black', alpha=0.7, lw=2))
+
+    for i, cor in enumerate(corridors):
+        verts = hpoly_to_vertices(cor.hpoly.A, cor.hpoly.b, cor.ellipsoid.d)
+        if verts is not None:
+            ax.add_patch(MplPolygon(verts, closed=True, fc=colors[i],
+                                     ec=colors[i], alpha=0.2, lw=2, label=f'C{i}'))
+
+    for i, r in enumerate(radii):
+        if r > 0:
+            ax.add_patch(plt.Circle(waypoints[i+1], r, fc='red', ec='darkred',
+                                     alpha=0.2, lw=1.5, zorder=4))
+
+    ax.plot(waypoints[:,0], waypoints[:,1], 'ko-', lw=2.5, ms=10,
+             label='DDoPnD waypoints', zorder=5)
+    for i, w in enumerate(waypoints):
+        ax.annotate(f'wp{i}', w, textcoords="offset points",
+                     xytext=(8, 8), fontsize=9, fontweight='bold')
+
+    ax.plot(*start, 'go', ms=12, zorder=10)
+    ax.plot(*goal, 'r*', ms=15, zorder=10)
+
+    ax.set_xlim(lower[0]-0.5, upper[0]+0.5)
+    ax.set_ylim(lower[1]-0.5, upper[1]+0.5)
+    ax.set_aspect('equal')
+    ax.grid(True, alpha=0.3)
+    ax.legend(fontsize=9, loc='lower right')
+    ax.set_title(f'{len(corridors)} IRIS Corridors + Chebyshev Waypoints')
+    plt.tight_layout()
+    if save_path:
+        plt.savefig(save_path, dpi=150, bbox_inches='tight')
+    plt.show()
