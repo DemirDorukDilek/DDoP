@@ -54,21 +54,17 @@ def steer(from_pos, to_pos, step_size):
 
 def rrt_star(start, goal, obstacles, bounds,
              max_iter=3000, step_size=0.5, goal_bias=0.1,
-             goal_tol=0.5, rewire_radius=None, safety_margin=0.1):
+             goal_tol=0.5, safety_margin=0.1, **_):
     dim = len(start)
     lower, upper = bounds
 
-    # Inflate obstacles for safety
     if safety_margin > 0:
         check_obs = [inflate_obstacle(o, safety_margin) for o in obstacles]
     else:
         check_obs = obstacles
 
-    nodes = [RRTNode(pos=start.copy(), cost=0.0)]
+    nodes = [RRTNode(pos=start.copy())]
     goal_idx = None
-    best_goal_cost = np.inf
-    if rewire_radius is None:
-        rewire_radius = min(step_size * 3, 2.0)
 
     for _ in range(max_iter):
         sample = goal.copy() if np.random.rand() < goal_bias else \
@@ -84,36 +80,14 @@ def rrt_star(start, goal, obstacles, bounds,
         if not collision_free(nearest.pos, new_pos, check_obs):
             continue
 
-        new_cost = nearest.cost + np.linalg.norm(new_pos - nearest.pos)
-        near_indices = [i for i, n in enumerate(nodes)
-                        if np.linalg.norm(n.pos - new_pos) <= rewire_radius]
-
-        best_parent, best_cost = nearest_idx, new_cost
-        for ni in near_indices:
-            c = nodes[ni].cost + np.linalg.norm(nodes[ni].pos - new_pos)
-            if c < best_cost and collision_free(nodes[ni].pos, new_pos, check_obs):
-                best_parent, best_cost = ni, c
-
         new_idx = len(nodes)
-        nodes.append(RRTNode(pos=new_pos, parent=best_parent, cost=best_cost))
-
-        for ni in near_indices:
-            rc = best_cost + np.linalg.norm(new_pos - nodes[ni].pos)
-            if rc < nodes[ni].cost and collision_free(new_pos, nodes[ni].pos, check_obs):
-                nodes[ni].parent = new_idx
-                nodes[ni].cost = rc
+        nodes.append(RRTNode(pos=new_pos, parent=nearest_idx))
 
         d2g = np.linalg.norm(new_pos - goal)
         if d2g < goal_tol and collision_free(new_pos, goal, check_obs):
-            tc = best_cost + d2g
-            if tc < best_goal_cost:
-                if goal_idx is None:
-                    goal_idx = len(nodes)
-                    nodes.append(RRTNode(pos=goal.copy(), parent=new_idx, cost=tc))
-                else:
-                    nodes[goal_idx].parent = new_idx
-                    nodes[goal_idx].cost = tc
-                best_goal_cost = tc
+            goal_idx = len(nodes)
+            nodes.append(RRTNode(pos=goal.copy(), parent=new_idx))
+            break
 
     if goal_idx is None:
         return None

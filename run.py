@@ -1,8 +1,6 @@
 import numpy as np
-import pygame
 
-
-from DDOP import optimal_traj,PygameSimulator
+from DDOP import caster,PygameSimulator
 
 
 lower,upper = [0.,0.], [10.,10.]
@@ -13,11 +11,8 @@ obstacles = [
     [[6.,2.],[8.,3.],[7.5,5.],[5.5,4.]],
     [[7.,7.],[8.5,7.],[8.5,8.5],[7.,8.5]]
 ]
+start = [1.,5.]
 
-start, goal = [1.,5.], [9.,9.]
-opt, Ts, op_wp, opt_hpolys, obstacles = optimal_traj(start,goal,obstacles,lower,upper,seed=42)
+start, _, obstacles, bounds = caster(start, start, obstacles, lower, upper)
 
-
-
-
-PygameSimulator.start(opt,opt_hpolys,obstacles)
+PygameSimulator.start(start, obstacles, bounds)
