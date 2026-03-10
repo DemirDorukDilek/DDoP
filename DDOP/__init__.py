@@ -304,21 +304,10 @@ def caster(start,goal,obstacles,lower_bound,upper_bound):
     start, goal = np.array(start), np.array(goal)
     return start,goal,obstacles,bounds
 
-def txt_map_reader(path,out_sep="\n\n",mid_sep="\n",in_sep=" "):
+def map_reader(path,out_sep="\n\n",mid_sep="\n",in_sep=" "):
     with open(path,"r",encoding="utf-8") as f:
-        text=f.read().strip()
-    start_goal,lower_upper,obstacles = text.split(out_sep)
-    start,goal = start_goal.split(mid_sep)
-    lower,upper = lower_upper.split(mid_sep)
-    obstacles = obstacles.split(mid_sep)
-
-    start = list(map(float,start.split(in_sep)))
-    goal = list(map(float,goal.split(in_sep)))
-    lower = list(map(float,lower.split(in_sep)))
-    upper = list(map(float,upper.split(in_sep)))
-    obstacles = [*list(map(float,opst.split(in_sep))) for opst in obstacles]
-    obstacles = list(map(lambda x: [(x[i],x[i+1]) for i in range(0,len(x),2)], obstacles))
-
+        obj=json.load(f)
+    start,goal,lower,upper,obstacles = obj["start"],obj["goal"],obj["lower"],obj["upper"],obj["obstacles"]
     return caster(start,goal,obstacles,lower,upper)
 
 

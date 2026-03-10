@@ -1,6 +1,6 @@
 import numpy as np
 import sys
-from DDOP import txt_map_reader,PygameSimulator
+from DDOP import map_reader,PygameSimulator
 
 if sys.argv[1]:
     
@@ -14,6 +14,6 @@ obstacles = [
 ]
 start = [1.,5.]
 
-start, _, obstacles, bounds = txt_map_reader(sys.argv[1])
+start, _, obstacles, bounds = map_reader(sys.argv[1])
 
 PygameSimulator.start(start, obstacles, bounds)
