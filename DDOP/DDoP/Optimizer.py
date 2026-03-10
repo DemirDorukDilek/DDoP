@@ -92,7 +92,7 @@ def optimize_with_split(Ts_init, waypoints_init, hpolys_init ,max_iterations=5):
         rho_a_arr = np.array(rho_a)
         pakka_arr = np.array(pakka)
 
-        opt = DDoPnD([1.0]*(len(waypoints)-1),opt_waypoint,hpolys,32.0,rho_v_arr,rho_a_arr,pakka_arr,False,False,3)
+        opt = DDoPnD(Ts,opt_waypoint,hpolys,32.0,rho_v_arr,rho_a_arr,pakka_arr,False,False,3)
         T_opt, wp_opt, cost = opt.run()
         if "opt" in locals():
             pass
