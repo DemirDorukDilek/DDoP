@@ -317,6 +317,8 @@ def txt_map_reader(path,out_sep="\n\n",mid_sep="\n",in_sep=" "):
     lower = list(map(float,lower.split(in_sep)))
     upper = list(map(float,upper.split(in_sep)))
     obstacles = [*list(map(float,opst.split(in_sep))) for opst in obstacles]
+    obstacles = list(map(lambda x: [(x[i],x[i+1]) for i in range(0,len(x),2)], obstacles))
+
     return caster(start,goal,obstacles,lower,upper)
 
 
