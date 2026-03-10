@@ -22,8 +22,8 @@ class DDoPnD:
         self.rho_t = 32.0 if rho_t == None else rho_t
         self.rho_v = np.array([128.0]*self.M) if rho_v is None else rho_v
         self.rho_a = np.array([128.0]*self.M) if rho_a is None else rho_a
-        self.v_max = 4.0
-        self.a_max = 5.0
+        self.v_max = 13.0
+        self.a_max = 10.0
 
         self.pakka = np.array([1.0]*self.M) if pakka is None else pakka
 
