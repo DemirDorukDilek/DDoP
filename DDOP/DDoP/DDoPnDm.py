@@ -6,7 +6,7 @@ from scipy.optimize import minimize
 
 class DDoPnD:
 
-    def __init__(self,Ts,waypoints,polyhedron,rho_t=None,rho_v=None,rho_a=None,pakka=None,fix_times=False,fix_waypoints=False,S=4):
+    def __init__(self,Ts,waypoints,polyhedron,rho_t=32.0,rho_v=None,rho_a=None,pakka=None,fix_times=False,fix_waypoints=False,S=3,**opt_args):
         self.save = Ts.copy(),waypoints.copy(),polyhedron.copy()
         self.Ts = Ts
         self.waypoints = waypoints
@@ -19,13 +19,14 @@ class DDoPnD:
         self.opt = [DDoP(Ts.copy(),dim,True,True,S) for dim in self.dims]
         self.polyhedron = polyhedron
 
-        self.rho_t = 32.0 if rho_t == None else rho_t
+        self.rho_t = rho_t
         self.rho_v = np.array([128.0]*self.M) if rho_v is None else rho_v
         self.rho_a = np.array([128.0]*self.M) if rho_a is None else rho_a
-        self.v_max = 13.0
-        self.a_max = 10.0
+        self.v_max = opt_args.get("v_max",13)
+        self.a_max = opt_args.get("a_max",10)
 
         self.pakka = np.array([1.0]*self.M) if pakka is None else pakka
+        self.opt_args = opt_args
 
     def reset(self):
         self.__init__(*self.save,self.fix_times,self.fix_waypoints,self.S)
@@ -282,7 +283,7 @@ class DDoPnD:
             method='L-BFGS-B',
             jac=self.grad,
             bounds=bounds,
-            options={'disp': True, 'maxiter': 1000}
+            options={'disp': True, 'maxiter': self.opt_args("maxiter",1000)}
         )
         self._unpack(result.x)
         self.J(result.x)

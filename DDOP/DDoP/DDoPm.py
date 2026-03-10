@@ -5,7 +5,7 @@ from scipy.optimize import minimize
 
 class DDoP:
 
-    def __init__(self,Ts,checkpoints,fix_times=False,fix_waypoints=False,S=4):
+    def __init__(self,Ts,checkpoints,fix_times=False,fix_waypoints=False,S=3):
         self.Ts = Ts
         self.checkpoints = checkpoints
         self.S = S

@@ -77,23 +77,23 @@ def split_hpoly(hpoly, q_prev, q_next, pmargin=0.1):
     return (A0, b0), (A1, b1), midpoint
 
 
-def optimize_with_split(Ts_init, waypoints_init, hpolys_init ,max_iterations=5):
+def optimize_with_split(Ts_init, waypoints_init, hpolys_init, max_iterations=5,rho_t=32.0,rho_v=128.0, ,rho_a=128.0, pakka=1.0, **opt_args):
 
     Ts = Ts_init.copy()
     waypoints = waypoints_init.copy()
     hpolys = hpolys_init.copy()
-    rho_v = [128.0]*len(Ts)
-    rho_a = [128.0]*len(Ts)
-    pakka = [1.0]*len(Ts)
+    rho_v_list = [rho_v_init]*len(Ts)
+    rho_a_list = [rho_a_init]*len(Ts)
+    pakka_list = [pakka_init]*len(Ts)
     last_split = -1
     for _ in range(max_iterations):
 
         opt_waypoint = list(map(np.array,waypoints))
-        rho_v_arr = np.array(rho_v)
-        rho_a_arr = np.array(rho_a)
-        pakka_arr = np.array(pakka)
+        rho_v_arr = np.array(rho_v_list)
+        rho_a_arr = np.array(rho_a_list)
+        pakka_arr = np.array(pakka_list)
 
-        opt = DDoPnD(Ts,opt_waypoint,hpolys,32.0,rho_v_arr,rho_a_arr,pakka_arr,False,False,3)
+        opt = DDoPnD(Ts,opt_waypoint,hpolys,rho_t,rho_v_arr,rho_a_arr,pakka_arr,**opt_args)
         T_opt, wp_opt, cost = opt.run()
         if "opt" in locals():
             pass
@@ -124,20 +124,20 @@ def optimize_with_split(Ts_init, waypoints_init, hpolys_init ,max_iterations=5):
         Ts[piece_idx] = Ts[piece_idx] / 2
 
         if vaolation_type == 0:
-            pakka.insert(piece_idx + 1, pakka[piece_idx])
-            pakka[piece_idx] = pakka[piece_idx]*1.5
-            rho_v.insert(piece_idx + 1,128.0)
-            rho_a.insert(piece_idx + 1,128.0)
+            pakka_list.insert(piece_idx + 1, pakka_list[piece_idx])
+            pakka_list[piece_idx] = pakka_list[piece_idx]*1.5
+            rho_v_list.insert(piece_idx + 1,128.0)
+            rho_a_list.insert(piece_idx + 1,128.0)
         elif vaolation_type == 1:
-            rho_v.insert(piece_idx + 1, rho_v[piece_idx])
-            rho_v[piece_idx] = rho_v[piece_idx]*1.5
-            pakka.insert(piece_idx + 1,1.0)
-            rho_a.insert(piece_idx + 1,128.0)
+            rho_v_list.insert(piece_idx + 1, rho_v_list[piece_idx])
+            rho_v_list[piece_idx] = rho_v_list[piece_idx]*1.5
+            pakka_list.insert(piece_idx + 1,1.0)
+            rho_a_list.insert(piece_idx + 1,128.0)
         elif vaolation_type == 2:
-            rho_a.insert(piece_idx + 1, rho_a[piece_idx])
-            rho_a[piece_idx] = rho_a[piece_idx]*1.5
-            pakka.insert(piece_idx + 1,1.0)
-            rho_v.insert(piece_idx + 1,128.0)
+            rho_a_list.insert(piece_idx + 1, rho_a_list[piece_idx])
+            rho_a_list[piece_idx] = rho_a_list[piece_idx]*1.5
+            pakka_list.insert(piece_idx + 1,1.0)
+            rho_v_list.insert(piece_idx + 1,128.0)
 
         hpolys[piece_idx] = poly_1
         hpolys.insert(piece_idx + 1, poly_0)

@@ -8,6 +8,9 @@ import numpy as np
 import time
 import threading
 import pygame
+import os
+import json
+
 
 class PygameSimulator:
     """
@@ -16,10 +19,11 @@ class PygameSimulator:
     States: IDLE -> CALCULATING -> FLYING -> IDLE
     """
 
-    def __init__(self, start_pos, obstacles, bounds):
+    def __init__(self, start_pos, obstacles, bounds,param={}):
         self.obstacles = obstacles
         self.bounds = bounds
         self.current_pos = np.array(start_pos, dtype=float)
+        self.param = param
 
         # State machine
         self.state = "IDLE"
@@ -105,7 +109,7 @@ class PygameSimulator:
 
     def _run_calculation(self, goal):
         try:
-            result = optimal_traj(self.current_pos, goal, self.obstacles, self.bounds, rrt_args = {"goal_bias":0.15})
+            result = optimal_traj(self.current_pos, goal, self.obstacles, self.bounds, **self.param)
             self._calc_result = result
         except (Exception, SystemExit):
             self._calc_result = None
@@ -283,8 +287,14 @@ class PygameSimulator:
         pygame.quit()
 
     @staticmethod
-    def start(start_pos, obstacles, bounds):
-        sim = PygameSimulator(start_pos, obstacles, bounds)
+    def start(start_pos, obstacles, bounds, param=None):
+        if param is None and os.path.isfile("param.json"):
+            with open("param.json","r") as f:
+                param = json.load(f)
+        else:
+            print("not found para.json")
+            param = {} if param is None else param
+        sim = PygameSimulator(start_pos, obstacles, bounds, **param)
         sim.run()
 
 
@@ -294,7 +304,23 @@ def caster(start,goal,obstacles,lower_bound,upper_bound):
     start, goal = np.array(start), np.array(goal)
     return start,goal,obstacles,bounds
 
-def optimal_traj(start,goal,obstacles,bounds,*_,seed=None,plot=False,rrt_args={},iris_args={}):
+def txt_map_reader(path,out_sep="\n\n",mid_sep="\n",in_sep=" "):
+    with open(path,"r",encoding="utf-8") as f:
+        text=f.read().strip()
+    start_goal,lower_upper,obstacles = text.split(out_sep)
+    start,goal = start_goal.split(mid_sep)
+    lower,upper = lower_upper.split(mid_sep)
+    obstacles = obstacles.split(mid_sep)
+
+    start = list(map(float,start.split(in_sep)))
+    goal = list(map(float,goal.split(in_sep)))
+    lower = list(map(float,lower.split(in_sep)))
+    upper = list(map(float,upper.split(in_sep)))
+    obstacles = [*list(map(float,opst.split(in_sep))) for opst in obstacles]
+    return caster(start,goal,obstacles,lower,upper)
+
+
+def optimal_traj(start,goal,obstacles,bounds,*_,seed=None,plot=False,rrt_args={},iris_args={},optimizer_args={}):
     if seed:
         np.random.seed(seed)
 
@@ -321,7 +347,7 @@ def optimal_traj(start,goal,obstacles,bounds,*_,seed=None,plot=False,rrt_args={}
     hpolys = list(map(lambda x:(x.hpoly.A,x.hpoly.b),corridors))
     print("Step 3: Optimization Time:", end="")
     ddop_time = time.time()
-    opt, Ts, op_wp, opt_hpolys = optimize_with_split([1.0]*(len(waypoints)-1),waypoints,hpolys,10)
+    opt, Ts, op_wp, opt_hpolys = optimize_with_split([1.0]*(len(waypoints)-1),waypoints,hpolys,**optimizer_args)
     print(time.time()-ddop_time)
     print("Total:", time.time()-rrt_time)
     if plot:

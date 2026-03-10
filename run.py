@@ -1,8 +1,9 @@
 import numpy as np
+import sys
+from DDOP import txt_map_reader,PygameSimulator
 
-from DDOP import caster,PygameSimulator
-
-
+if sys.argv[1]:
+    
 lower,upper = [0.,0.], [10.,10.]
 
 obstacles = [
@@ -13,6 +14,6 @@ obstacles = [
 ]
 start = [1.,5.]
 
-start, _, obstacles, bounds = caster(start, start, obstacles, lower, upper)
+start, _, obstacles, bounds = txt_map_reader(sys.argv[1])
 
 PygameSimulator.start(start, obstacles, bounds)
