@@ -89,7 +89,6 @@ class DDoP:
         return term1 + term2
 
     def J(self,x):
-        self.__init__(self.Ts,self.checkpoints,self.fix_times,self.fix_waypoints,self.S)
         self._unpack(x)
 
         self.Afs,self.Abs,self.Qs,self.Hs = [],[],[],[]

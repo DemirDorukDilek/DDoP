@@ -285,5 +285,5 @@ class DDoPnD:
             options={'disp': True, 'maxiter': 1000}
         )
         self._unpack(result.x)
-
+        self.J(result.x)
         return self.Ts, self.waypoints, result.fun

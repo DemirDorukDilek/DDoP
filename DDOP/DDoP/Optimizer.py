@@ -56,8 +56,9 @@ def clip_hpoly(A, b, plane_point, plane_normal):
     return A_clipped, b_clipped
 
 
-def split_hpoly(hpoly, q_prev, q_next, margin=0.1):
+def split_hpoly(hpoly, q_prev, q_next, pmargin=0.1):
     A,b = hpoly
+    margin = min(pmargin, 0.25*np.linalg.norm(q_next-q_prev))
 
     q_prev = np.array(q_prev, dtype=float)
     q_next = np.array(q_next, dtype=float)
@@ -123,18 +124,18 @@ def optimize_with_split(Ts_init, waypoints_init, hpolys_init ,max_iterations=5):
         Ts[piece_idx] = Ts[piece_idx] / 2
 
         if vaolation_type == 0:
-            pakka[piece_idx] = pakka[piece_idx]*1.5
             pakka.insert(piece_idx + 1, pakka[piece_idx])
+            pakka[piece_idx] = pakka[piece_idx]*1.5
             rho_v.insert(piece_idx + 1,128.0)
             rho_a.insert(piece_idx + 1,128.0)
         elif vaolation_type == 1:
-            rho_v[piece_idx] = rho_v[piece_idx]*1.5
             rho_v.insert(piece_idx + 1, rho_v[piece_idx])
+            rho_v[piece_idx] = rho_v[piece_idx]*1.5
             pakka.insert(piece_idx + 1,1.0)
             rho_a.insert(piece_idx + 1,128.0)
         elif vaolation_type == 2:
-            rho_a[piece_idx] = rho_a[piece_idx]*1.5
             rho_a.insert(piece_idx + 1, rho_a[piece_idx])
+            rho_a[piece_idx] = rho_a[piece_idx]*1.5
             pakka.insert(piece_idx + 1,1.0)
             rho_v.insert(piece_idx + 1,128.0)
 
