@@ -117,7 +117,7 @@ def visualize_results_2d(opt, polyhedron, waypoints_init, bounds, obstacles=None
 
     colors = plt.cm.Set3(np.linspace(0, 1, len(polyhedron)))
     for idx, (A, b) in enumerate(polyhedron):
-        verts = H2V(A, b, bounds)
+        verts = H2V(A, b)
         if verts is not None:
             from matplotlib.patches import Polygon
             poly = Polygon(verts, alpha=0.4, facecolor=colors[idx],
