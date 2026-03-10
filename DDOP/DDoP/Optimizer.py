@@ -119,8 +119,8 @@ def optimize_with_split(Ts_init, waypoints_init, hpolys_init ,max_iterations=5):
         poly_0, poly_1,new_waypoint = split_hpoly(hpolys[piece_idx], q_prev, q_next, 0.5)
 
         waypoints.insert(piece_idx + 1, new_waypoint)
-        Ts[piece_idx] = Ts[piece_idx] / 2
         Ts.insert(piece_idx + 1, Ts[piece_idx] / 2)
+        Ts[piece_idx] = Ts[piece_idx] / 2
 
         if vaolation_type == 0:
             pakka[piece_idx] = pakka[piece_idx]*1.5
