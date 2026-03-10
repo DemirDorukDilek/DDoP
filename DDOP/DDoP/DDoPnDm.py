@@ -283,7 +283,7 @@ class DDoPnD:
             method='L-BFGS-B',
             jac=self.grad,
             bounds=bounds,
-            options={'disp': True, 'maxiter': self.opt_args("maxiter",1000)}
+            options={'disp': True, 'maxiter': self.opt_args.get("maxiter",1000)}
         )
         self._unpack(result.x)
         self.J(result.x)

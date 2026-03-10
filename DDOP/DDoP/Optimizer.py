@@ -82,9 +82,9 @@ def optimize_with_split(Ts_init, waypoints_init, hpolys_init, max_iterations=5,r
     Ts = Ts_init.copy()
     waypoints = waypoints_init.copy()
     hpolys = hpolys_init.copy()
-    rho_v_list = [rho_v_init]*len(Ts)
-    rho_a_list = [rho_a_init]*len(Ts)
-    pakka_list = [pakka_init]*len(Ts)
+    rho_v_list = [rho_v]*len(Ts)
+    rho_a_list = [rho_a]*len(Ts)
+    pakka_list = [pakka]*len(Ts)
     last_split = -1
     for _ in range(max_iterations):
 
