@@ -77,7 +77,7 @@ def split_hpoly(hpoly, q_prev, q_next, pmargin=0.1):
     return (A0, b0), (A1, b1), midpoint
 
 
-def optimize_with_split(Ts_init, waypoints_init, hpolys_init, max_iterations=5,rho_t=32.0,rho_v=128.0, ,rho_a=128.0, pakka=1.0, **opt_args):
+def optimize_with_split(Ts_init, waypoints_init, hpolys_init, max_iterations=5,rho_t=32.0,rho_v=128.0, rho_a=128.0, pakka=1.0, **opt_args):
 
     Ts = Ts_init.copy()
     waypoints = waypoints_init.copy()
