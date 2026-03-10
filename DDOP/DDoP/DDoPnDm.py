@@ -22,8 +22,8 @@ class DDoPnD:
         self.rho_t = 32.0 if rho_t == None else rho_t
         self.rho_v = np.array([128.0]*self.M) if rho_v is None else rho_v
         self.rho_a = np.array([128.0]*self.M) if rho_a is None else rho_a
-        self.v_max = 4.0
-        self.a_max = 5.0
+        self.v_max = 13.0
+        self.a_max = 10.0
 
         self.pakka = np.array([1.0]*self.M) if pakka is None else pakka
 
@@ -139,7 +139,7 @@ class DDoPnD:
                 da_dT_prev = -2.0 * (v_out - v_in) / T_sum_sq + 2.0 * (q_curr - q_prev) / (T_sum * np.power(T_prev, 2))
 
                 # ∂a/∂T_i (T_next)
-                da_dT_next = 2.0 * (v_out - v_in) / T_sum_sq - 2.0 * (q_next - q_curr) / (T_sum * np.power(T_next, 2))
+                da_dT_next = - 2.0 * (v_out - v_in) / T_sum_sq - 2.0 * (q_next - q_curr) / (T_sum * np.power(T_next, 2))
 
                 # ∂||a||²/∂T = 2 * a · ∂a/∂T
                 grad_T[i - 1] += self.rho_a[i-1] * gp * 2.0 * np.dot(a, da_dT_prev)
@@ -151,8 +151,8 @@ class DDoPnD:
                 # ∂a/∂q_i = -2/T_sum * (1/T_prev + 1/T_next)
                 da_dq_curr = -2.0 / T_sum * (1.0 / T_prev + 1.0 / T_next)
 
-                # ∂a/∂q_{i+1} = -2/(T_sum * T_next)
-                da_dq_next = -2.0 / (T_sum * T_next)
+                # ∂a/∂q_{i+1} = 2/(T_sum * T_next)
+                da_dq_next = 2.0 / (T_sum * T_next)
 
                 # ∂||a||²/∂q = 2 * a · ∂a/∂q = 2 * a * scalar
                 # q_{i-1}
@@ -285,5 +285,5 @@ class DDoPnD:
             options={'disp': True, 'maxiter': 1000}
         )
         self._unpack(result.x)
-
+        self.J(result.x)
         return self.Ts, self.waypoints, result.fun

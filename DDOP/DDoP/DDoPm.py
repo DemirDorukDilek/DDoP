@@ -39,7 +39,7 @@ class DDoP:
             if i < self.M-2:
                 x = np.block([[self.D@(self.OMEGAs[i]+self.GAMAs[i+1])@self.D.T, self.D@self.LAMBDAs[i+1]@self.D.T], [self.D@self.PHIs[i+1]@self.D.T, np.zeros(((self.S-1),(self.S-1)))]])
                 self.Mm[(self.S-1)*i:(self.S-1)*(i+2) , (self.S-1)*i:(self.S-1)*(i+2)] = x
-            self.b[(self.S-1)*i:(self.S-1)*(i+1)] = (-self.D@(self.PHIs[i]@self.kappa[i] + (self.OMEGAs[i]+self.GAMAs[i+1])@self.kappa[i+1] + self.LAMBDAs[i]@self.kappa[i+2]))
+            self.b[(self.S-1)*i:(self.S-1)*(i+1)] = (-self.D@(self.PHIs[i]@self.kappa[i] + (self.OMEGAs[i]+self.GAMAs[i+1])@self.kappa[i+1] + self.LAMBDAs[i+1]@self.kappa[i+2]))
 
         self.Mm[-(self.S-1):,-(self.S-1):] = self.D@(self.OMEGAs[self.M-2]+self.GAMAs[self.M-1])@self.D.T
         self.b = self.b[:,None]
@@ -89,7 +89,6 @@ class DDoP:
         return term1 + term2
 
     def J(self,x):
-        self.__init__(self.Ts,self.checkpoints,self.fix_times,self.fix_waypoints,self.S)
         self._unpack(x)
 
         self.Afs,self.Abs,self.Qs,self.Hs = [],[],[],[]
