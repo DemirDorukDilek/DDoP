@@ -244,7 +244,7 @@ def plot_rrt(path, obstacles, start, goal, bounds, save_path=None):
     lower, upper = bounds
 
     for obs in obstacles:
-        ax.add_patch(MplPolygon(H2V(obs), closed=True,
+        ax.add_patch(MplPolygon(H2V(obs.A,obs.b), closed=True,
                                  fc='gray', ec='black', alpha=0.7, lw=2))
 
     ax.plot(path[:,0], path[:,1], 'b.-', lw=1.5, alpha=0.6, label=f'RRT* ({len(path)} pts)')
