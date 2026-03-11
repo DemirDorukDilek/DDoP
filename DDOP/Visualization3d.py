@@ -317,7 +317,7 @@ def _draw_projected_obstacle(ax, obs, axes_2d):
             pass
 
 
-def visualize_results_3d_full(opt, polyhedron, waypoints_init, bounds, obstacles=None, save_path=None):
+def visualize_results_3d(opt, polyhedron, waypoints_init, bounds, obstacles=None, save_path=None):
     """
     7 panelli 3D gorsellestirme:
       Ust satir:  3D gorunum | XY kesiti | YZ kesiti | XZ kesiti
