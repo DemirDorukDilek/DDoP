@@ -1,25 +1,21 @@
 import numpy as np
 import cvxpy as cp
 from dataclasses import dataclass
-
-
-@dataclass
-class ConvexObstacle:
-    vertices: np.ndarray
-
-    def get_edges(self):
-        n = len(self.vertices)
-        return [(self.vertices[i], self.vertices[(i + 1) % n]) for i in range(n)]
-
+from scipy.spatial import ConvexHull
 
 @dataclass
 class HPolyhedron:
     A: np.ndarray
     b: np.ndarray
 
+    @staticmethod
+    def from_Vrep(vs):
+        hull = ConvexHull(vs)
+        A = hull.equations[:,:-1]
+        A = -hull.equations[:, -1]
+
     def contains(self, point):
         return np.all(self.A @ point <= self.b + 1e-8)
-
 
 @dataclass
 class Ellipsoid:
@@ -38,30 +34,21 @@ class Corridor:
     seed: np.ndarray
 
 
-def closest_point_on_vector(p, a, b):
-    ab = b - a
-    t = np.dot(p - a, ab) / (np.dot(ab, ab) + 1e-15)
-    return a + np.clip(t, 0.0, 1.0) * ab
-
-
 def closest_point_on_obstacle(point, obstacle):
-    best_dist, best_pt = np.inf, None
-    for a, b in obstacle.get_edges():
-        cp_pt = closest_point_on_vector(point, a, b)
-        d = np.linalg.norm(cp_pt - point)
-        if d < best_dist:
-            best_dist, best_pt = d, cp_pt
-    return best_pt
+    x = cp.Variable(len(point))
+    porb = cp.Problem(cp.Minimize(cp.sum_squares(x-point)),[obstacle.A @ x <= obstacle.b])
+    try:
+        prob.solve(solver = cp.CLARABEL, verbose=False)
+        if prob.status in ["optimal", "optimal_inaccurate"]:
+            return x.value
+    except:
+        pass
+    return point.copy()
 
 
 def inflate_obstacle(obstacle, margin):
-    center = np.mean(obstacle.vertices, axis=0)
-    inflated = []
-    for v in obstacle.vertices:
-        d = v - center
-        n = np.linalg.norm(d)
-        inflated.append(v + d / n * margin if n > 1e-10 else v)
-    return ConvexObstacle(np.array(inflated))
+    norm = np.linalg.norm(obstacle.A,axis=1)
+    return HPolyhedron(obstacle.A.copy(),obstacle.b+margin*norm)
 
 def intersect_hpoly(h1: HPolyhedron, h2: HPolyhedron):
     A = np.vstack([h1.A, h2.A])
