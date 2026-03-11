@@ -9,7 +9,6 @@ def V2H(v):
     return A, b
 
 def H2V(A, b):
-    """H-rep → vertices"""
     interior = chebyshev_center(HPolyhedron(A,b))
     if interior is None:
         return None

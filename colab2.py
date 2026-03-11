@@ -18,7 +18,6 @@ obstacles = [
 
 start = np.array([0.5, 9.5, 2.0])
 goal = np.array([9.0, 4.0, 4.0])
-print("akame")
 # np.random.seed(42)
 
 print("Step 1: RRT Time: ", end="")
