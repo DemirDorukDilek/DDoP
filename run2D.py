@@ -29,7 +29,7 @@ path = rrt(start, goal, obstacles, bounds)
 print(time.time()-rrt_time)
 if path is None:
     print("  RRT* failed!")
-plot_rrt(path, obstacles, start, goal, bounds, save_path='rrt.png')
+plot_rrt(path, obstacles, start, goal, bounds, save_path='results/rrt.png')
 
 print("Step 2: IRIS Corridors Time: ", end="")
 iris_time = time.time()
@@ -40,7 +40,7 @@ if iris_result is None:
 corridors, waypoints, radii = iris_result
 print("Verification:", end="")
 verify_corridors(corridors, radii)
-plot_corridors(corridors, waypoints, radii, obstacles, start, goal, bounds, save_path='corridors.png')
+plot_corridors(corridors, waypoints, radii, obstacles, start, goal, bounds, save_path='results/corridors.png')
 
 hpolys = list(map(lambda x:(x.hpoly.A,x.hpoly.b),corridors))
 print("Step 3: Optimization Time:", end="")
@@ -48,4 +48,4 @@ ddop_time = time.time()
 opt, Ts, op_wp, opt_hpolys = optimize_with_split([1.0]*(len(waypoints)-1),waypoints,hpolys,10)
 print(time.time()-ddop_time)
 print("Total:", time.time()-rrt_time)
-visualize_results_2d(opt, opt_hpolys, op_wp, bounds, obstacles, save_path="results.png")
+visualize_results_2d(opt, opt_hpolys, op_wp, bounds, obstacles, save_path="results/results.png")

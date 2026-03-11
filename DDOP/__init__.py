@@ -341,7 +341,7 @@ def optimal_traj(start,goal,obstacles,bounds,*_,seed=None,plot=False,rrt_args={}
     print(time.time()-ddop_time)
     print("Total:", time.time()-rrt_time)
     if plot:
-        plot_rrt(path, obstacles, start, goal, bounds, save_path='rrt.png')
-        plot_corridors(corridors, waypoints, radii, obstacles, start, goal, bounds, save_path='corridors.png')
-        visualize_results_2d(opt, opt_hpolys, op_wp, bounds, obstacles, save_path="results.png")
+        plot_rrt(path, obstacles, start, goal, bounds, save_path='results/rrt.png')
+        plot_corridors(corridors, waypoints, radii, obstacles, start, goal, bounds, save_path='results/corridors.png')
+        visualize_results_2d(opt, opt_hpolys, op_wp, bounds, obstacles, save_path="results/results.png")
     return opt, Ts, op_wp, opt_hpolys, obstacles, bounds
