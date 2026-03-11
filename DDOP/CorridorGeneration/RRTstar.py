@@ -1,7 +1,7 @@
 import numpy as np
 from dataclasses import dataclass
 from typing import Optional
-from .Corridor_Utils import inflate_obstacle
+from .Corridor_Utils import inflate_obstacle, HPolyhedron
 
 
 @dataclass
@@ -11,37 +11,52 @@ class RRTNode:
     cost: float = 0.0
 
 
-def segments_intersect(p1, p2, p3, p4):
-    d1, d2 = p2 - p1, p4 - p3
-    cross = d1[0] * d2[1] - d1[1] * d2[0]
-    if abs(cross) < 1e-12:
-        return False
-    t = ((p3[0] - p1[0]) * d2[1] - (p3[1] - p1[1]) * d2[0]) / cross
-    u = ((p3[0] - p1[0]) * d1[1] - (p3[1] - p1[1]) * d1[0]) / cross
-    return 0 <= t <= 1 and 0 <= u <= 1
+def segment_intersects_hpoly(a, b, hpoly: HPolyhedron):
+    """
+    Cyrus-Beck: p(t) = a + t*(b-a), t in [0,1]
+    A @ p(t) <= b_poly => A @ a + t * A @ d <= b_poly
+    Her halfspace icin t araligini daralt.
+    Kesisim varsa True doner.
+    """
+    d = b - a
+    Ad = hpoly.A @ d
+    Aa = hpoly.A @ a
+
+    t_min, t_max = 0.0, 1.0
+
+    for i in range(len(hpoly.b)):
+        num = hpoly.b[i] - Aa[i]
+        den = Ad[i]
+
+        if abs(den) < 1e-15:
+            # Ray halfspace'e paralel
+            if num < -1e-10:
+                return False
+            continue
+
+        t = num / den
+        if den < 0:
+            # Giren: t_min yukari
+            t_min = max(t_min, t)
+        else:
+            # Cikan: t_max asagi
+            t_max = min(t_max, t)
+
+        if t_min > t_max + 1e-10:
+            return False
+
+    return t_min <= t_max + 1e-10
 
 
 def collision_free(a, b, obstacles):
     for obs in obstacles:
-        for e1, e2 in obs.get_edges():
-            if segments_intersect(a, b, e1, e2):
-                return False
-    return True
-
-
-def point_in_obstacle(point, obs):
-    verts = obs.vertices
-    n = len(verts)
-    for i in range(n):
-        edge = verts[(i + 1) % n] - verts[i]
-        to_pt = point - verts[i]
-        if edge[0] * to_pt[1] - edge[1] * to_pt[0] < -1e-10:
+        if segment_intersects_hpoly(a, b, obs):
             return False
     return True
 
 
 def point_in_free_space(point, obstacles):
-    return not any(point_in_obstacle(point, o) for o in obstacles)
+    return not any(obs.contains(point) for obs in obstacles)
 
 
 def steer(from_pos, to_pos, step_size):
