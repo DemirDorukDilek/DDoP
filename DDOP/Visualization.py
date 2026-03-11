@@ -128,7 +128,7 @@ def visualize_results_2d(opt, polyhedron, waypoints_init, bounds, obstacles=None
 
     if obstacles:
         for obs in obstacles:
-            ax1.add_patch(MplPolygon(obs.vertices, closed=True,
+            ax1.add_patch(MplPolygon(H2V(obs.A,obs.b), closed=True,
                                  fc='gray', ec='black', alpha=0.7, lw=2))
 
     ax1.plot(wp_init[:,0], wp_init[:,1], 'b--', linewidth=1.5,
