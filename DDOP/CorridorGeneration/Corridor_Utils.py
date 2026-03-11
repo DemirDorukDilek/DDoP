@@ -12,7 +12,8 @@ class HPolyhedron:
     def from_Vrep(vs):
         hull = ConvexHull(vs)
         A = hull.equations[:,:-1]
-        A = -hull.equations[:, -1]
+        b = -hull.equations[:, -1]
+        return HPolyhedron(A,b)
 
     def contains(self, point):
         return np.all(self.A @ point <= self.b + 1e-8)
