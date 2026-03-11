@@ -1,7 +1,6 @@
 from .DDoP.Optimizer import optimize_with_split
 from .CorridorGeneration.IRIS import greedy_corridor_generation,verify_corridors
 from .CorridorGeneration.RRTstar import rrt_star
-from .CorridorGeneration.Corridor_Utils import ConvexObstacle
 from .Visualization import visualize_results_2d,plot_rrt,plot_corridors
 from .Utils import H2V
 import numpy as np
@@ -299,9 +298,9 @@ class PygameSimulator:
 
 
 def caster(start,goal,obstacles,lower_bound,upper_bound):
-    bounds = (np.array(lower_bound), np.array(upper_bound))
-    obstacles = [ConvexObstacle(np.array(obstacle)) for obstacle in obstacles]
-    start, goal = np.array(start), np.array(goal)
+    # bounds = (np.array(lower_bound), np.array(upper_bound))
+    # obstacles = [ConvexObstacle(np.array(obstacle)) for obstacle in obstacles]
+    # start, goal = np.array(start), np.array(goal)
     return start,goal,obstacles,bounds
 
 def map_reader(path,out_sep="\n\n",mid_sep="\n",in_sep=" "):
