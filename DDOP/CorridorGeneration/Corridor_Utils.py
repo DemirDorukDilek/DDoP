@@ -37,7 +37,7 @@ class Corridor:
 
 def closest_point_on_obstacle(point, obstacle):
     x = cp.Variable(len(point))
-    porb = cp.Problem(cp.Minimize(cp.sum_squares(x-point)),[obstacle.A @ x <= obstacle.b])
+    prob = cp.Problem(cp.Minimize(cp.sum_squares(x-point)),[obstacle.A @ x <= obstacle.b])
     try:
         prob.solve(solver = cp.CLARABEL, verbose=False)
         if prob.status in ["optimal", "optimal_inaccurate"]:
