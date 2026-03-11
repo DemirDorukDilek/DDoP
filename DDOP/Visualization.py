@@ -276,7 +276,7 @@ def plot_corridors(corridors, waypoints, radii, obstacles, start, goal, bounds, 
     colors = plt.cm.Set2(np.linspace(0, 1, max(len(corridors), 1)))
 
     for obs in obstacles:
-        ax.add_patch(MplPolygon(obs.vertices, closed=True,
+        ax.add_patch(MplPolygon(H2V(obs.A,obs.b), closed=True,
                                  fc='gray', ec='black', alpha=0.7, lw=2))
 
     for i, cor in enumerate(corridors):
