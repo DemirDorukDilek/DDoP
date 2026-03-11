@@ -413,6 +413,220 @@ def visualize_results_3d_full(opt, polyhedron, waypoints_init, bounds, obstacles
     plt.show()
 
 
+def visualize_interactive(opt, polyhedron, waypoints_init, bounds, obstacles=None, save_path=None):
+    """
+    Plotly ile interaktif 3D gorsellestirme.
+    Mouse ile dondur, zoom yap, hover ile koordinat gor.
+    Legenddan polytope/obstacle/trajectory toggle et.
+    save_path verilirse HTML olarak kaydeder.
+    """
+    import plotly.graph_objects as go
+    from plotly.subplots import make_subplots
+
+    t, coords = _get_trajectory_points(opt, num_points=100)
+    wp_opt = np.array(opt.waypoints)
+    wp_init = np.array(waypoints_init)
+
+    t_wp = [0]
+    for T in opt.Ts:
+        t_wp.append(t_wp[-1] + T)
+
+    fig = make_subplots(
+        rows=2, cols=3,
+        row_heights=[0.65, 0.35],
+        specs=[
+            [{"type": "scene", "colspan": 3}, None, None],
+            [{"type": "xy"}, {"type": "xy"}, {"type": "xy"}],
+        ],
+        subplot_titles=["3D Trajectory", "X(t)", "Y(t)", "Z(t)"],
+        vertical_spacing=0.08,
+        horizontal_spacing=0.06,
+    )
+
+    colors_poly = [
+        f'hsla({int(i * 360 / max(len(polyhedron), 1))}, 70%, 60%, 0.25)'
+        for i in range(len(polyhedron))
+    ]
+    colors_poly_edge = [
+        f'hsla({int(i * 360 / max(len(polyhedron), 1))}, 70%, 40%, 0.6)'
+        for i in range(len(polyhedron))
+    ]
+
+    # Polytope'lar
+    for idx, (A, b) in enumerate(polyhedron):
+        verts = H2V(A, b)
+        if verts is not None and len(verts) >= 4:
+            try:
+                hull = ConvexHull(verts)
+                x, y, z = verts[:, 0], verts[:, 1], verts[:, 2]
+                i_f, j_f, k_f = hull.simplices[:, 0], hull.simplices[:, 1], hull.simplices[:, 2]
+                fig.add_trace(go.Mesh3d(
+                    x=x, y=y, z=z,
+                    i=i_f, j=j_f, k=k_f,
+                    color=colors_poly[idx],
+                    flatshading=True,
+                    name=f'P{idx}',
+                    legendgroup=f'poly{idx}',
+                    showlegend=True,
+                    hoverinfo='name',
+                ), row=1, col=1)
+            except Exception:
+                pass
+
+    # Engeller
+    if obstacles:
+        for oi, obs in enumerate(obstacles):
+            verts = H2V(obs.A, obs.b)
+            if verts is not None and len(verts) >= 4:
+                try:
+                    hull = ConvexHull(verts)
+                    x, y, z = verts[:, 0], verts[:, 1], verts[:, 2]
+                    i_f, j_f, k_f = hull.simplices[:, 0], hull.simplices[:, 1], hull.simplices[:, 2]
+                    fig.add_trace(go.Mesh3d(
+                        x=x, y=y, z=z,
+                        i=i_f, j=j_f, k=k_f,
+                        color='rgba(180, 60, 60, 0.6)',
+                        flatshading=True,
+                        name=f'Obstacle {oi}',
+                        legendgroup='obstacles',
+                        showlegend=(oi == 0),
+                        legendgrouptitle_text='Obstacles' if oi == 0 else None,
+                        hoverinfo='name',
+                    ), row=1, col=1)
+                except Exception:
+                    pass
+
+    # Initial waypoints
+    fig.add_trace(go.Scatter3d(
+        x=wp_init[:, 0], y=wp_init[:, 1], z=wp_init[:, 2],
+        mode='lines+markers',
+        line=dict(color='blue', width=3, dash='dash'),
+        marker=dict(size=4, color='blue', symbol='square'),
+        name='Initial',
+        legendgroup='initial',
+    ), row=1, col=1)
+
+    # Optimized trajectory
+    hover_text = [f't={ti:.2f}s<br>X={coords[0][i]:.2f}<br>Y={coords[1][i]:.2f}<br>Z={coords[2][i]:.2f}'
+                  for i, ti in enumerate(t)]
+    fig.add_trace(go.Scatter3d(
+        x=coords[0], y=coords[1], z=coords[2],
+        mode='lines',
+        line=dict(color='red', width=5),
+        name='Optimized',
+        legendgroup='optimized',
+        hovertext=hover_text,
+        hoverinfo='text',
+    ), row=1, col=1)
+
+    # Optimized waypoints
+    wp_hover = [f'q{i}<br>X={wp[0]:.2f}<br>Y={wp[1]:.2f}<br>Z={wp[2]:.2f}<br>t={t_wp[i]:.2f}s'
+                for i, wp in enumerate(wp_opt)]
+    fig.add_trace(go.Scatter3d(
+        x=wp_opt[:, 0], y=wp_opt[:, 1], z=wp_opt[:, 2],
+        mode='markers+text',
+        marker=dict(size=6, color='red', line=dict(width=2, color='black')),
+        text=[f'q{i}' for i in range(len(wp_opt))],
+        textposition='top center',
+        textfont=dict(size=10, color='black'),
+        name='Waypoints',
+        legendgroup='waypoints',
+        hovertext=wp_hover,
+        hoverinfo='text',
+    ), row=1, col=1)
+
+    # Start / Goal
+    fig.add_trace(go.Scatter3d(
+        x=[wp_opt[0, 0]], y=[wp_opt[0, 1]], z=[wp_opt[0, 2]],
+        mode='markers', marker=dict(size=10, color='green', symbol='diamond'),
+        name='Start', showlegend=True,
+    ), row=1, col=1)
+    fig.add_trace(go.Scatter3d(
+        x=[wp_opt[-1, 0]], y=[wp_opt[-1, 1]], z=[wp_opt[-1, 2]],
+        mode='markers', marker=dict(size=10, color='red', symbol='x'),
+        name='Goal', showlegend=True,
+    ), row=1, col=1)
+
+    # Alt satirda X(t), Y(t), Z(t)
+    axis_labels = ['X', 'Y', 'Z']
+    axis_colors = ['blue', 'green', 'red']
+    for d in range(3):
+        fig.add_trace(go.Scatter(
+            x=t, y=coords[d],
+            mode='lines',
+            line=dict(color=axis_colors[d], width=2),
+            name=f'{axis_labels[d]}(t)',
+            legendgroup=f'coord{d}',
+            showlegend=True,
+            hovertemplate=f't=%{{x:.2f}}s<br>{axis_labels[d]}=%{{y:.2f}}m<extra></extra>',
+        ), row=2, col=d+1)
+
+        # Waypoint isaretleri
+        wp_t = [t_wp[i] for i in range(len(wp_opt))]
+        wp_d = [wp_opt[i, d] for i in range(len(wp_opt))]
+        fig.add_trace(go.Scatter(
+            x=wp_t, y=wp_d,
+            mode='markers+text',
+            marker=dict(size=8, color='red', line=dict(width=1, color='black')),
+            text=[f'q{i}' for i in range(len(wp_opt))],
+            textposition='top center',
+            textfont=dict(size=9),
+            name=f'WP {axis_labels[d]}',
+            legendgroup=f'coord{d}',
+            showlegend=False,
+            hovertemplate=f'q%{{text}}<br>t=%{{x:.2f}}s<br>{axis_labels[d]}=%{{y:.2f}}m<extra></extra>',
+        ), row=2, col=d+1)
+
+        # Segment ayirici dikey cizgiler
+        xaxis_ref = f'x{d + 1}' if d == 0 else f'x{d + 1}'
+        yaxis_ref = f'y{d + 1}' if d == 0 else f'y{d + 1}'
+        # subplot row=2, col=d+1 -> xaxis/yaxis indices
+        axis_map = {0: ('x2', 'y2'), 1: ('x3', 'y3'), 2: ('x4', 'y4')}
+        xref, yref = axis_map[d]
+        for tw in t_wp[1:-1]:
+            fig.add_shape(
+                type='line', x0=tw, x1=tw, y0=0, y1=1,
+                xref=xref, yref=f'{yref} domain',
+                line=dict(color='gray', width=1, dash='dash'),
+            )
+
+        fig.update_xaxes(title_text='Time (s)', row=2, col=d+1)
+        fig.update_yaxes(title_text=f'{axis_labels[d]} (m)', row=2, col=d+1)
+
+    # 3D scene ayarlari
+    scene = dict(
+        aspectmode='data',
+        xaxis_title='X (m)',
+        yaxis_title='Y (m)',
+        zaxis_title='Z (m)',
+    )
+    if bounds:
+        lower, upper = bounds
+        margin = 0.5
+        scene.update(
+            xaxis=dict(range=[lower[0]-margin, upper[0]+margin]),
+            yaxis=dict(range=[lower[1]-margin, upper[1]+margin]),
+            zaxis=dict(range=[lower[2]-margin, upper[2]+margin]),
+        )
+
+    fig.update_layout(
+        scene=scene,
+        height=900,
+        width=1400,
+        title='DDoP - Interactive 3D Trajectory',
+        legend=dict(x=1.02, y=1, font=dict(size=10)),
+        hovermode='closest',
+    )
+
+    if save_path:
+        if save_path.endswith('.html'):
+            fig.write_html(save_path)
+        else:
+            fig.write_html(save_path.rsplit('.', 1)[0] + '.html')
+
+    fig.show()
+
+
 def visualize_state(polyhedron, waypoints, obstacles=None, bounds=None):
     """Polyhedron ve waypoint gorsellestirme (optimizasyon oncesi)"""
     wp = np.array(waypoints)
