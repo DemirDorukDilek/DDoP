@@ -3,7 +3,7 @@ import time
 from DDOP.CorridorGeneration.IRIS import greedy_corridor_generation,verify_corridors
 from DDOP.CorridorGeneration.RRTstar import rrt_star
 from DDOP.DDoP.Optimizer import optimize_with_split
-from DDOP.Visualization3d import visualize_results,visualize_results_3d_full,visualize_interactive,plot_rrt,plot_corridors
+from DDOP.Visualization3d import visualize_results,visualize_results_3d_full,visualize_interactive,visualize_simulation,plot_rrt,plot_corridors
 from DDOP.CorridorGeneration.Corridor_Utils import HPolyhedron
 
 
@@ -47,4 +47,5 @@ print(time.time()-ddop_time)
 print("Total:", time.time()-rrt_time)
 visualize_results_3d_full(opt, opt_hpolys, op_wp, bounds, obstacles, save_path="results.png")
 visualize_interactive(opt, opt_hpolys, op_wp, bounds, obstacles, save_path="results.html")
+visualize_simulation(opt, opt_hpolys, op_wp, bounds, obstacles, save_path="simulation.html")
 

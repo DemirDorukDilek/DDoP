@@ -566,6 +566,224 @@ def visualize_interactive(opt, polyhedron, waypoints_init, bounds, obstacles=Non
     fig.show()
 
 
+def visualize_simulation(opt, polyhedron, waypoints_init, bounds, obstacles=None,
+                         num_frames=120, trail=True, save_path=None):
+    """
+    Plotly animasyonu ile drone simulasyonu.
+    Play/pause butonu + zaman slider ile kontrol.
+    Drone yol boyunca ilerler, arkasinda iz birakir.
+    """
+    import plotly.graph_objects as go
+
+    t_all, coords = _get_trajectory_points(opt, num_points=500)
+    wp_opt = np.array(opt.waypoints)
+
+    t_wp = [0]
+    for T in opt.Ts:
+        t_wp.append(t_wp[-1] + T)
+
+    # Frame indeksleri (500 noktadan num_frames kadar seciyoruz)
+    total_pts = len(t_all)
+    frame_indices = np.linspace(0, total_pts - 1, num_frames, dtype=int)
+
+    # --- Statik trace'ler (her frame'de ayni) ---
+    static_traces = []
+
+    # Polytope'lar
+    colors_poly = [
+        f'hsla({int(i * 360 / max(len(polyhedron), 1))}, 70%, 60%, 0.2)'
+        for i in range(len(polyhedron))
+    ]
+    for idx, (A, b) in enumerate(polyhedron):
+        verts = H2V(A, b)
+        if verts is not None and len(verts) >= 4:
+            try:
+                hull = ConvexHull(verts)
+                static_traces.append(go.Mesh3d(
+                    x=verts[:, 0], y=verts[:, 1], z=verts[:, 2],
+                    i=hull.simplices[:, 0], j=hull.simplices[:, 1], k=hull.simplices[:, 2],
+                    color=colors_poly[idx], flatshading=True,
+                    name=f'P{idx}', showlegend=True, hoverinfo='name',
+                ))
+            except Exception:
+                pass
+
+    # Engeller
+    if obstacles:
+        for oi, obs in enumerate(obstacles):
+            verts = H2V(obs.A, obs.b)
+            if verts is not None and len(verts) >= 4:
+                try:
+                    hull = ConvexHull(verts)
+                    static_traces.append(go.Mesh3d(
+                        x=verts[:, 0], y=verts[:, 1], z=verts[:, 2],
+                        i=hull.simplices[:, 0], j=hull.simplices[:, 1], k=hull.simplices[:, 2],
+                        color='rgba(180, 60, 60, 0.6)', flatshading=True,
+                        name=f'Obstacle {oi}', showlegend=(oi == 0), hoverinfo='name',
+                    ))
+                except Exception:
+                    pass
+
+    # Waypoints
+    static_traces.append(go.Scatter3d(
+        x=wp_opt[:, 0], y=wp_opt[:, 1], z=wp_opt[:, 2],
+        mode='markers+text',
+        marker=dict(size=4, color='gray', line=dict(width=1, color='black')),
+        text=[f'q{i}' for i in range(len(wp_opt))],
+        textposition='top center', textfont=dict(size=9, color='gray'),
+        name='Waypoints', showlegend=True, hoverinfo='text',
+    ))
+
+    # Full trajectory (soluk)
+    static_traces.append(go.Scatter3d(
+        x=coords[0], y=coords[1], z=coords[2],
+        mode='lines', line=dict(color='rgba(200,200,200,0.4)', width=2),
+        name='Full Path', showlegend=True, hoverinfo='skip',
+    ))
+
+    n_static = len(static_traces)
+
+    # --- Animated trace'ler (ilk frame) ---
+    # Trail (iz)
+    trail_trace = go.Scatter3d(
+        x=[coords[0][0]], y=[coords[1][0]], z=[coords[2][0]],
+        mode='lines', line=dict(color='red', width=4),
+        name='Trail', showlegend=True, hoverinfo='skip',
+    )
+
+    # Drone marker
+    drone_trace = go.Scatter3d(
+        x=[coords[0][0]], y=[coords[1][0]], z=[coords[2][0]],
+        mode='markers',
+        marker=dict(size=8, color='lime', symbol='diamond',
+                    line=dict(width=2, color='black')),
+        name='Drone', showlegend=True,
+        hovertext=f't=0.00s',
+        hoverinfo='text',
+    )
+
+    # Time text (3D annotation yerine trace)
+    time_trace = go.Scatter3d(
+        x=[coords[0][0]], y=[coords[1][0]], z=[coords[2][0] + 0.5],
+        mode='text', text=[f't=0.00s'],
+        textfont=dict(size=12, color='black'),
+        showlegend=False, hoverinfo='skip',
+    )
+
+    fig = go.Figure(data=static_traces + [trail_trace, drone_trace, time_trace])
+
+    # --- Frames ---
+    frames = []
+    for fi, idx in enumerate(frame_indices):
+        ti = t_all[idx]
+        cx, cy, cz = coords[0][idx], coords[1][idx], coords[2][idx]
+
+        if trail:
+            trail_x = coords[0][:idx+1]
+            trail_y = coords[1][:idx+1]
+            trail_z = coords[2][:idx+1]
+        else:
+            trail_x, trail_y, trail_z = [cx], [cy], [cz]
+
+        frame_data = [
+            go.Scatter3d(x=trail_x, y=trail_y, z=trail_z),  # trail
+            go.Scatter3d(
+                x=[cx], y=[cy], z=[cz],
+                hovertext=f't={ti:.2f}s<br>X={cx:.2f}<br>Y={cy:.2f}<br>Z={cz:.2f}',
+            ),  # drone
+            go.Scatter3d(
+                x=[cx], y=[cy], z=[cz + 0.5],
+                text=[f't={ti:.2f}s'],
+            ),  # time label
+        ]
+
+        frames.append(go.Frame(
+            data=frame_data,
+            traces=list(range(n_static, n_static + 3)),
+            name=f'f{fi}',
+        ))
+
+    fig.frames = frames
+
+    # --- Slider ---
+    slider_steps = []
+    for fi, idx in enumerate(frame_indices):
+        ti = t_all[idx]
+        slider_steps.append(dict(
+            args=[[f'f{fi}'], dict(frame=dict(duration=0, redraw=True), mode='immediate')],
+            label=f'{ti:.1f}s',
+            method='animate',
+        ))
+
+    # --- Layout ---
+    scene = dict(
+        aspectmode='data',
+        xaxis_title='X (m)', yaxis_title='Y (m)', zaxis_title='Z (m)',
+    )
+    if bounds:
+        lower, upper = bounds
+        m = 0.5
+        scene.update(
+            xaxis=dict(range=[lower[0]-m, upper[0]+m]),
+            yaxis=dict(range=[lower[1]-m, upper[1]+m]),
+            zaxis=dict(range=[lower[2]-m, upper[2]+m]),
+        )
+
+    total_time_ms = t_all[-1] * 1000
+    frame_duration = max(30, int(total_time_ms / num_frames))
+
+    fig.update_layout(
+        scene=scene,
+        height=800, width=1100,
+        title='DDoP - 3D Drone Simulation',
+        legend=dict(x=1.02, y=1, font=dict(size=10)),
+        updatemenus=[dict(
+            type='buttons',
+            showactive=False,
+            x=0.05, y=0.02,
+            xanchor='left', yanchor='bottom',
+            buttons=[
+                dict(label='▶ Play',
+                     method='animate',
+                     args=[None, dict(
+                         frame=dict(duration=frame_duration, redraw=True),
+                         fromcurrent=True,
+                         transition=dict(duration=0),
+                     )]),
+                dict(label='⏸ Pause',
+                     method='animate',
+                     args=[[None], dict(
+                         frame=dict(duration=0, redraw=False),
+                         mode='immediate',
+                     )]),
+                dict(label='⏮ Reset',
+                     method='animate',
+                     args=[['f0'], dict(
+                         frame=dict(duration=0, redraw=True),
+                         mode='immediate',
+                     )]),
+            ],
+        )],
+        sliders=[dict(
+            active=0,
+            steps=slider_steps,
+            x=0.05, len=0.9,
+            xanchor='left',
+            y=0, yanchor='top',
+            pad=dict(b=10, t=60),
+            currentvalue=dict(prefix='Time: ', visible=True, xanchor='center'),
+            transition=dict(duration=0),
+        )],
+    )
+
+    if save_path:
+        out = save_path if save_path.endswith('.html') else save_path.rsplit('.', 1)[0] + '.html'
+        fig.write_html(out)
+        print(f"Simulation saved: {out}")
+
+    fig.show()
+
+
 def visualize_state(polyhedron, waypoints, obstacles=None, bounds=None):
     """Polyhedron ve waypoint gorsellestirme (optimizasyon oncesi)"""
     wp = np.array(waypoints)
