@@ -421,7 +421,6 @@ def visualize_interactive(opt, polyhedron, waypoints_init, bounds, obstacles=Non
     save_path verilirse HTML olarak kaydeder.
     """
     import plotly.graph_objects as go
-    from plotly.subplots import make_subplots
 
     t, coords = _get_trajectory_points(opt, num_points=100)
     wp_opt = np.array(opt.waypoints)
@@ -431,24 +430,10 @@ def visualize_interactive(opt, polyhedron, waypoints_init, bounds, obstacles=Non
     for T in opt.Ts:
         t_wp.append(t_wp[-1] + T)
 
-    fig = make_subplots(
-        rows=2, cols=3,
-        row_heights=[0.65, 0.35],
-        specs=[
-            [{"type": "scene", "colspan": 3}, None, None],
-            [{"type": "xy"}, {"type": "xy"}, {"type": "xy"}],
-        ],
-        subplot_titles=["3D Trajectory", "X(t)", "Y(t)", "Z(t)"],
-        vertical_spacing=0.08,
-        horizontal_spacing=0.06,
-    )
+    fig = go.Figure()
 
     colors_poly = [
         f'hsla({int(i * 360 / max(len(polyhedron), 1))}, 70%, 60%, 0.25)'
-        for i in range(len(polyhedron))
-    ]
-    colors_poly_edge = [
-        f'hsla({int(i * 360 / max(len(polyhedron), 1))}, 70%, 40%, 0.6)'
         for i in range(len(polyhedron))
     ]
 
@@ -469,7 +454,7 @@ def visualize_interactive(opt, polyhedron, waypoints_init, bounds, obstacles=Non
                     legendgroup=f'poly{idx}',
                     showlegend=True,
                     hoverinfo='name',
-                ), row=1, col=1)
+                ))
             except Exception:
                 pass
 
@@ -492,7 +477,7 @@ def visualize_interactive(opt, polyhedron, waypoints_init, bounds, obstacles=Non
                         showlegend=(oi == 0),
                         legendgrouptitle_text='Obstacles' if oi == 0 else None,
                         hoverinfo='name',
-                    ), row=1, col=1)
+                    ))
                 except Exception:
                     pass
 
@@ -504,7 +489,7 @@ def visualize_interactive(opt, polyhedron, waypoints_init, bounds, obstacles=Non
         marker=dict(size=4, color='blue', symbol='square'),
         name='Initial',
         legendgroup='initial',
-    ), row=1, col=1)
+    ))
 
     # Optimized trajectory
     hover_text = [f't={ti:.2f}s<br>X={coords[0][i]:.2f}<br>Y={coords[1][i]:.2f}<br>Z={coords[2][i]:.2f}'
@@ -517,7 +502,7 @@ def visualize_interactive(opt, polyhedron, waypoints_init, bounds, obstacles=Non
         legendgroup='optimized',
         hovertext=hover_text,
         hoverinfo='text',
-    ), row=1, col=1)
+    ))
 
     # Optimized waypoints
     wp_hover = [f'q{i}<br>X={wp[0]:.2f}<br>Y={wp[1]:.2f}<br>Z={wp[2]:.2f}<br>t={t_wp[i]:.2f}s'
@@ -533,65 +518,19 @@ def visualize_interactive(opt, polyhedron, waypoints_init, bounds, obstacles=Non
         legendgroup='waypoints',
         hovertext=wp_hover,
         hoverinfo='text',
-    ), row=1, col=1)
+    ))
 
     # Start / Goal
     fig.add_trace(go.Scatter3d(
         x=[wp_opt[0, 0]], y=[wp_opt[0, 1]], z=[wp_opt[0, 2]],
         mode='markers', marker=dict(size=10, color='green', symbol='diamond'),
         name='Start', showlegend=True,
-    ), row=1, col=1)
+    ))
     fig.add_trace(go.Scatter3d(
         x=[wp_opt[-1, 0]], y=[wp_opt[-1, 1]], z=[wp_opt[-1, 2]],
         mode='markers', marker=dict(size=10, color='red', symbol='x'),
         name='Goal', showlegend=True,
-    ), row=1, col=1)
-
-    # Alt satirda X(t), Y(t), Z(t)
-    axis_labels = ['X', 'Y', 'Z']
-    axis_colors = ['blue', 'green', 'red']
-    for d in range(3):
-        fig.add_trace(go.Scatter(
-            x=t, y=coords[d],
-            mode='lines',
-            line=dict(color=axis_colors[d], width=2),
-            name=f'{axis_labels[d]}(t)',
-            legendgroup=f'coord{d}',
-            showlegend=True,
-            hovertemplate=f't=%{{x:.2f}}s<br>{axis_labels[d]}=%{{y:.2f}}m<extra></extra>',
-        ), row=2, col=d+1)
-
-        # Waypoint isaretleri
-        wp_t = [t_wp[i] for i in range(len(wp_opt))]
-        wp_d = [wp_opt[i, d] for i in range(len(wp_opt))]
-        fig.add_trace(go.Scatter(
-            x=wp_t, y=wp_d,
-            mode='markers+text',
-            marker=dict(size=8, color='red', line=dict(width=1, color='black')),
-            text=[f'q{i}' for i in range(len(wp_opt))],
-            textposition='top center',
-            textfont=dict(size=9),
-            name=f'WP {axis_labels[d]}',
-            legendgroup=f'coord{d}',
-            showlegend=False,
-            hovertemplate=f'q%{{text}}<br>t=%{{x:.2f}}s<br>{axis_labels[d]}=%{{y:.2f}}m<extra></extra>',
-        ), row=2, col=d+1)
-
-        # Segment ayirici dikey cizgiler
-        xaxis_ref = f'x{d + 1}' if d == 0 else f'x{d + 1}'
-        yaxis_ref = f'y{d + 1}' if d == 0 else f'y{d + 1}'
-        # subplot row=2, col=d+1 -> xaxis/yaxis indices
-        axis_map = {0: ('x2', 'y2'), 1: ('x3', 'y3'), 2: ('x4', 'y4')}
-        xref, yref = axis_map[d]
-        for tw in t_wp[1:-1]:
-            fig.add_shape(
-                type='line', x0=tw, x1=tw, y0=0, y1=1,
-                xref=xref, yref=f'{yref} domain',
-                line=dict(color='gray', width=1, dash='dash'),
-            )
-
-        fig.update_xaxes(title_text='Time (s)', row=2, col=d+1)
-        fig.update_yaxes(title_text=f'{axis_labels[d]} (m)', row=2, col=d+1)
+    ))
 
     # 3D scene ayarlari
     scene = dict(
@@ -611,8 +550,8 @@ def visualize_interactive(opt, polyhedron, waypoints_init, bounds, obstacles=Non
 
     fig.update_layout(
         scene=scene,
-        height=900,
-        width=1400,
+        height=800,
+        width=1200,
         title='DDoP - Interactive 3D Trajectory',
         legend=dict(x=1.02, y=1, font=dict(size=10)),
         hovermode='closest',
