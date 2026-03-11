@@ -1,21 +1,11 @@
-!rm -rf DDOP
-!git clone https://github.com/DemirDorukDilek/DDoP --branch Util --single-branch git
-!mv git/DDOP .
-!rm -rf git
 
-#%%
-
-import sys
-for i in list(filter(lambda x: "DDOP" in x,sys.modules)):
-    sys.modules.pop(i)
 from DDOP import caster
 from DDOP.DDoP.Optimizer import optimize_with_split
 from DDOP.CorridorGeneration.IRIS import greedy_corridor_generation,verify_corridors
 from DDOP.CorridorGeneration.RRTstar import rrt_star
-from DDOP.Visualization import visualize_results_2d,plot_rrt,plot_corridors
+from DDOP.Visualization import visualize_results,plot_rrt,plot_corridors
 import time
 
-#%%
 
 lower,upper = [0.,0.], [10.,10.]
 

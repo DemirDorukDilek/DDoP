@@ -1,7 +1,7 @@
 from .DDoP.Optimizer import optimize_with_split
 from .CorridorGeneration.IRIS import greedy_corridor_generation,verify_corridors
 from .CorridorGeneration.RRTstar import rrt_star
-from .Visualization import visualize_results_2d,plot_rrt,plot_corridors
+from .Visualization3d import visualize_results,visualize_results_3d_full,plot_rrt,plot_corridors
 from .Utils import H2V
 import numpy as np
 import time

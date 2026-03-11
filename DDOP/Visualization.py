@@ -4,7 +4,7 @@ from matplotlib.patches import Polygon as MplPolygon
 from scipy.spatial import HalfspaceIntersection, ConvexHull
 from .Utils import H2V
 
-def visualize_trajectory_2d(opt, Ts, checkpoints_x, checkpoints_y):
+def visualize_trajectory(opt, Ts, checkpoints_x, checkpoints_y):
     """2D trajectory çiz"""
 
     # Her piece için trajectory hesapla
@@ -61,7 +61,7 @@ def visualize_trajectory_2d(opt, Ts, checkpoints_x, checkpoints_y):
     plt.tight_layout()
     plt.show()
 
-def visualize_results_2d(opt, polyhedron, waypoints_init, bounds, obstacles=None, save_path=None):
+def visualize_results(opt, polyhedron, waypoints_init, bounds, obstacles=None, save_path=None):
     """
     3 Plot: XY Trajectory + Polyhedron, X(t), Y(t)
 

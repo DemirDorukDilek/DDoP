@@ -282,8 +282,135 @@ def visualize_results(opt, polyhedron, waypoints_init, bounds, obstacles=None, s
     plt.show()
 
 
-# Backward compat
-visualize_results_2d = visualize_results
+def _project_hpoly(A, b, axes_2d):
+    """3D H-polytope'u 2D eksene project et (vertex project)"""
+    verts = H2V(A, b)
+    if verts is None or len(verts) < 3:
+        return None
+    return verts[:, axes_2d]
+
+
+def _draw_projected_poly(ax, A, b, axes_2d, color, alpha=0.3, label=None):
+    """3D polytope'u 2D eksene project edip ciz"""
+    proj = _project_hpoly(A, b, axes_2d)
+    if proj is not None and len(proj) >= 3:
+        try:
+            hull = ConvexHull(proj)
+            hull_verts = proj[hull.vertices]
+            poly = MplPolygon(hull_verts, alpha=alpha, facecolor=color,
+                              edgecolor='black', linewidth=1, label=label)
+            ax.add_patch(poly)
+        except Exception:
+            pass
+
+
+def _draw_projected_obstacle(ax, obs, axes_2d):
+    """3D obstacle'i 2D eksene project edip ciz"""
+    proj = _project_hpoly(obs.A, obs.b, axes_2d)
+    if proj is not None and len(proj) >= 3:
+        try:
+            hull = ConvexHull(proj)
+            hull_verts = proj[hull.vertices]
+            ax.add_patch(MplPolygon(hull_verts, closed=True,
+                                    fc='gray', ec='black', alpha=0.5, lw=1.5))
+        except Exception:
+            pass
+
+
+def visualize_results_3d_full(opt, polyhedron, waypoints_init, bounds, obstacles=None, save_path=None):
+    """
+    7 panelli 3D gorsellestirme:
+      Ust satir:  3D gorunum | XY kesiti | YZ kesiti | XZ kesiti
+      Alt satir:  X(t)       | Y(t)      | Z(t)
+    """
+    t, coords = _get_trajectory_points(opt)
+    wp_opt = np.array(opt.waypoints)
+    wp_init = np.array(waypoints_init)
+
+    t_wp = [0]
+    for T in opt.Ts:
+        t_wp.append(t_wp[-1] + T)
+
+    colors_poly = plt.cm.Set3(np.linspace(0, 1, len(polyhedron)))
+    axis_labels = ['X', 'Y', 'Z']
+    axis_colors = ['b', 'g', 'r']
+
+    fig = plt.figure(figsize=(24, 12))
+
+    # --- 1) 3D gorunum (ust sol, buyuk) ---
+    ax3d = fig.add_subplot(2, 4, 1, projection='3d')
+    for idx, (A, b) in enumerate(polyhedron):
+        _draw_hpoly_3d(ax3d, A, b, colors_poly[idx], alpha=0.15)
+    if obstacles:
+        for obs in obstacles:
+            _draw_obstacle_3d(ax3d, obs)
+    ax3d.plot(wp_init[:,0], wp_init[:,1], wp_init[:,2], 'b--',
+              linewidth=1.5, alpha=0.5, marker='s', markersize=4, label='Initial')
+    ax3d.plot(coords[0], coords[1], coords[2], 'r-', linewidth=2.5, label='Optimized')
+    ax3d.scatter(wp_opt[:,0], wp_opt[:,1], wp_opt[:,2], c='red', s=60,
+                 zorder=5, edgecolors='black', linewidths=1.5)
+    for i, wp in enumerate(wp_opt):
+        ax3d.text(wp[0], wp[1], wp[2], f'  q{i}', fontsize=8, fontweight='bold')
+    if bounds:
+        _set_3d_bounds(ax3d, bounds)
+    ax3d.legend(loc='upper left', fontsize=8)
+    ax3d.set_title('3D Trajectory', fontweight='bold')
+
+    # --- 2-4) 2D kesitler: XY, YZ, XZ ---
+    projections = [
+        ([0, 1], 'XY'),
+        ([1, 2], 'YZ'),
+        ([0, 2], 'XZ'),
+    ]
+    for p_idx, (axes_2d, name) in enumerate(projections):
+        ax = fig.add_subplot(2, 4, p_idx + 2)
+        d0, d1 = axes_2d
+
+        for idx, (A, b) in enumerate(polyhedron):
+            _draw_projected_poly(ax, A, b, axes_2d, colors_poly[idx], alpha=0.2)
+        if obstacles:
+            for obs in obstacles:
+                _draw_projected_obstacle(ax, obs, axes_2d)
+
+        ax.plot(np.array(wp_init)[:,d0], np.array(wp_init)[:,d1], 'b--',
+                linewidth=1.5, alpha=0.5, marker='s', markersize=4)
+        ax.plot(coords[d0], coords[d1], 'r-', linewidth=2, label='Optimized')
+        ax.scatter(wp_opt[:,d0], wp_opt[:,d1], c='red', s=60,
+                   zorder=5, edgecolors='black', linewidths=1.5)
+        for i, wp in enumerate(wp_opt):
+            ax.annotate(f'q{i}', (wp[d0], wp[d1]), xytext=(5, 5),
+                        textcoords='offset points', fontsize=8, fontweight='bold')
+
+        if bounds:
+            lower, upper = bounds
+            margin = 0.5
+            ax.set_xlim(lower[d0]-margin, upper[d0]+margin)
+            ax.set_ylim(lower[d1]-margin, upper[d1]+margin)
+        ax.set_aspect('equal')
+        ax.grid(True, alpha=0.3)
+        ax.set_xlabel(f'{axis_labels[d0]} (m)')
+        ax.set_ylabel(f'{axis_labels[d1]} (m)')
+        ax.set_title(f'{name} Projection', fontweight='bold')
+
+    # --- 5-7) Zaman grafikleri: X(t), Y(t), Z(t) ---
+    for d in range(3):
+        ax = fig.add_subplot(2, 4, d + 5)
+        ax.plot(t, coords[d], f'{axis_colors[d]}-', linewidth=2, label=f'{axis_labels[d]}(t)')
+        for i, (tw, wp) in enumerate(zip(t_wp, wp_opt)):
+            ax.axvline(tw, color='gray', linestyle='--', alpha=0.5)
+            ax.scatter(tw, wp[d], c='red', s=60, zorder=5, edgecolors='black')
+            ax.annotate(f'q{i}', (tw, wp[d]), xytext=(5, 8),
+                        textcoords='offset points', fontsize=8)
+        ax.grid(True, alpha=0.3)
+        ax.legend(fontsize=9)
+        ax.set_xlabel('Time (s)')
+        ax.set_ylabel(f'{axis_labels[d]} (m)')
+        ax.set_title(f'{axis_labels[d]}(t)', fontweight='bold')
+
+    plt.tight_layout()
+    if save_path:
+        plt.savefig(save_path, dpi=150, bbox_inches='tight')
+    plt.show()
 
 
 def visualize_state(polyhedron, waypoints, obstacles=None, bounds=None):
@@ -329,6 +456,6 @@ def visualize_state(polyhedron, waypoints, obstacles=None, bounds=None):
             _set_3d_bounds(ax, bounds)
         ax.legend(loc='upper left')
         ax.set_title('Polyhedron & Waypoints', fontweight='bold')
-
     plt.tight_layout()
+    plt.savefig("akame.png", dpi=480, bbox_inches='tight')
     plt.show()
