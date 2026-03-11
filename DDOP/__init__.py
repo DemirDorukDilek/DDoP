@@ -1,6 +1,7 @@
 from .DDoP.Optimizer import optimize_with_split
 from .CorridorGeneration.IRIS import greedy_corridor_generation,verify_corridors
 from .CorridorGeneration.RRT import rrt
+from .CorridorGeneration.Corridor_Utils import HPolyhedron
 from .Visualization3d import visualize_results,visualize_results_3d_full,visualize_interactive,plot_rrt,plot_corridors
 from .Utils import H2V
 import numpy as np
@@ -298,12 +299,12 @@ class PygameSimulator:
 
 
 def caster(start,goal,obstacles,lower_bound,upper_bound):
-    # bounds = (np.array(lower_bound), np.array(upper_bound))
-    # obstacles = [ConvexObstacle(np.array(obstacle)) for obstacle in obstacles]
-    # start, goal = np.array(start), np.array(goal)
+    bounds = (np.array(lower_bound), np.array(upper_bound))
+    obstacles = [HPolyhedron.from_Vrep(np.array(obstacle)) for obstacle in obstacles]
+    start, goal = np.array(start), np.array(goal)
     return start,goal,obstacles,bounds
 
-def map_reader(path,out_sep="\n\n",mid_sep="\n",in_sep=" "):
+def map_reader(path):
     with open(path,"r",encoding="utf-8") as f:
         obj=json.load(f)
     start,goal,lower,upper,obstacles = obj["start"],obj["goal"],obj["lower"],obj["upper"],obj["obstacles"]
