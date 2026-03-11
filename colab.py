@@ -2,7 +2,7 @@
 from DDOP import caster
 from DDOP.DDoP.Optimizer import optimize_with_split
 from DDOP.CorridorGeneration.IRIS import greedy_corridor_generation,verify_corridors
-from DDOP.CorridorGeneration.RRTstar import rrt_star
+from DDOP.CorridorGeneration.RRT import rrt
 from DDOP.Visualization import visualize_results,plot_rrt,plot_corridors
 import time
 
@@ -25,7 +25,7 @@ start, goal, obstacles, bounds = caster(start, goal, obstacles, lower, upper)
 
 print("Step 1: RRT* Time: ", end="")
 rrt_time = time.time()
-path = rrt_star(start, goal, obstacles, bounds)
+path = rrt(start, goal, obstacles, bounds)
 print(time.time()-rrt_time)
 if path is None:
     print("  RRT* failed!")

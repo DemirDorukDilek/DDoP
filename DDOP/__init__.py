@@ -1,6 +1,6 @@
 from .DDoP.Optimizer import optimize_with_split
 from .CorridorGeneration.IRIS import greedy_corridor_generation,verify_corridors
-from .CorridorGeneration.RRTstar import rrt_star
+from .CorridorGeneration.RRT import rrt
 from .Visualization3d import visualize_results,visualize_results_3d_full,visualize_interactive,plot_rrt,plot_corridors
 from .Utils import H2V
 import numpy as np
@@ -317,7 +317,7 @@ def optimal_traj(start,goal,obstacles,bounds,*_,seed=None,plot=False,rrt_args={}
 
     print("Step 1: RRT* Time: ", end="")
     rrt_time = time.time()
-    path = rrt_star(start, goal, obstacles, bounds,**rrt_args)
+    path = rrt(start, goal, obstacles, bounds,**rrt_args)
     print(time.time()-rrt_time)
     if path is None:
         print("  RRT* failed!")

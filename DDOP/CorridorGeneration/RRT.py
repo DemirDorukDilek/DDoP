@@ -67,7 +67,7 @@ def steer(from_pos, to_pos, step_size):
     return from_pos + (diff / dist) * step_size
 
 
-def rrt_star(start, goal, obstacles, bounds,
+def rrt(start, goal, obstacles, bounds,
              max_iter=3000, step_size=0.5, goal_bias=0.1,
              goal_tol=0.5, safety_margin=0.1, **_):
     dim = len(start)

@@ -1,7 +1,7 @@
 import numpy as np
 import time
 from DDOP.CorridorGeneration.IRIS import greedy_corridor_generation,verify_corridors
-from DDOP.CorridorGeneration.RRTstar import rrt_star
+from DDOP.CorridorGeneration.RRT import rrt
 from DDOP.DDoP.Optimizer import optimize_with_split
 from DDOP.Visualization3d import visualize_results,visualize_results_3d_full,visualize_interactive,visualize_simulation,plot_rrt,plot_corridors
 from DDOP.CorridorGeneration.Corridor_Utils import HPolyhedron
@@ -22,7 +22,7 @@ goal = np.array([9.0, 4.0, 4.0])
 
 print("Step 1: RRT Time: ", end="")
 rrt_time = time.time()
-path = rrt_star(start, goal, obstacles, bounds, max_iter=5000, step_size=0.8)
+path = rrt(start, goal, obstacles, bounds, max_iter=5000, step_size=0.8)
 print(time.time()-rrt_time)
 if path is None:
     print(" RRT failed!")
@@ -47,5 +47,4 @@ print(time.time()-ddop_time)
 print("Total:", time.time()-rrt_time)
 visualize_results_3d_full(opt, opt_hpolys, op_wp, bounds, obstacles, save_path="results.png")
 visualize_interactive(opt, opt_hpolys, op_wp, bounds, obstacles, save_path="results.html")
-visualize_simulation(opt, opt_hpolys, op_wp, bounds, obstacles, save_path="simulation.html")
 

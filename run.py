@@ -2,8 +2,6 @@ import numpy as np
 import sys
 from DDOP import map_reader,PygameSimulator
 
-if sys.argv[1]:
-    
 lower,upper = [0.,0.], [10.,10.]
 
 obstacles = [
