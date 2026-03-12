@@ -81,7 +81,7 @@ def rrt(start, goal, obstacles, bounds,
     nodes = [RRTNode(pos=start.copy())]
     goal_idx = None
 
-    for _ in range(max_iter):
+    for iter in range(max_iter):
         sample = goal.copy() if np.random.rand() < goal_bias else \
                  lower + np.random.rand(dim) * (upper - lower)
 
@@ -103,6 +103,8 @@ def rrt(start, goal, obstacles, bounds,
             goal_idx = len(nodes)
             nodes.append(RRTNode(pos=goal.copy(), parent=new_idx))
             break
+    else:
+        print("AKAME",_)
 
     if goal_idx is None:
         return None

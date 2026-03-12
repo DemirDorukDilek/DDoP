@@ -42,6 +42,7 @@ def optimal_traj(start,goal,obstacles,bounds,*_,seed=None,plot=False,rrt_args=No
     print(time.time()-rrt_time)
     if path is None:
         print(" RRT failed!")
+        return False
     if plot:
         plot_rrt(path, obstacles, start, goal, bounds, save_path='results/rrt.png')
 
@@ -51,6 +52,7 @@ def optimal_traj(start,goal,obstacles,bounds,*_,seed=None,plot=False,rrt_args=No
     print(time.time()-iris_time)
     if iris_result is None:
         print(" Corridor generation failed!")
+        return False
     corridors, waypoints, radii = iris_result
     print("Verification:", end="")
     verify_corridors(corridors, radii)

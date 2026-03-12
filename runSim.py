@@ -2,7 +2,7 @@ from DDOP import map_reader
 from DDOP.Sim2D import PygameSimulator
 from DDOP.Sim3D import DashSimulator
 
-map_path = "maps/3d_init_map.json"
+map_path = "maps/2d_init_map.json"
 start, goal, obstacles, bounds = map_reader(map_path)
 dim = start.shape[0]
 if dim == 2:
