@@ -1,4 +1,4 @@
-from .DDoP.Optimizer import optimize_with_split
+from .DDoP.Optimizer import optimize_with_split, optimize_with_split_fw
 from .CorridorGeneration.IRIS import greedy_corridor_generation,verify_corridors
 from .CorridorGeneration.RRT import rrt
 from .CorridorGeneration.Corridor_Utils import HPolyhedron
@@ -70,5 +70,68 @@ def optimal_traj(start,goal,obstacles,bounds,*_,seed=None,plot=False,rrt_args=No
             visualize_results_3d(opt, opt_hpolys, op_wp, bounds, obstacles, save_path="results/results.png")
             if interactive: visualize_interactive(opt, opt_hpolys, op_wp, bounds, obstacles, save_path="results/results.html")
         elif dim == 2: visualize_results(opt, opt_hpolys, op_wp, bounds, obstacles, save_path="results/results.png")
+
+    return opt, Ts, op_wp, opt_hpolys, obstacles, bounds
+
+
+def optimal_traj_fw(start, goal, obstacles, bounds, *_, seed=None, plot=False,
+                    rrt_args=None, iris_args={}, optimizer_args={}, interactive=False):
+    if seed:
+        np.random.seed(seed)
+    dim = start.shape[0]
+    if dim == 2:
+        rrt_args = {} if rrt_args is None else rrt_args
+    elif dim == 3:
+        rrt_args = {"max_iter": 5000, "step_size": 0.8} if rrt_args is None else rrt_args
+    else:
+        rrt_args = {} if rrt_args is None else rrt_args
+        plot = False
+
+    print("Step 1: RRT Time: ", end="")
+    rrt_time = time.time()
+    path = rrt(start, goal, obstacles, bounds, **rrt_args)
+    print(time.time() - rrt_time)
+    if path is None:
+        print(" RRT failed!")
+        return False
+    if plot:
+        plot_rrt(path, obstacles, start, goal, bounds, save_path='results/rrt.png')
+
+    print("Step 2: IRIS Corridors Time: ", end="")
+    iris_time = time.time()
+    iris_result = greedy_corridor_generation(path, obstacles, bounds, **iris_args)
+    print(time.time() - iris_time)
+    if iris_result is None:
+        print(" Corridor generation failed!")
+        return False
+    corridors, waypoints, radii = iris_result
+    print("Verification:", end="")
+    verify_corridors(corridors, radii)
+    if plot:
+        plot_corridors(corridors, waypoints, radii, obstacles, start, goal, bounds, save_path='results/corridors.png')
+
+    hpolys = list(map(lambda x: (x.hpoly.A, x.hpoly.b), corridors))
+
+    # Compute initial segment times based on distances and cruise speed
+    v_cruise = optimizer_args.get('v_min', 10.0) * 1.5
+    init_Ts = []
+    for i in range(len(waypoints) - 1):
+        dist = np.linalg.norm(waypoints[i + 1] - waypoints[i])
+        init_Ts.append(max(dist / v_cruise, 0.5))
+
+    print("Step 3: Fixed-Wing Optimization Time:", end="")
+    ddop_time = time.time()
+    opt, Ts, op_wp, opt_hpolys = optimize_with_split_fw(
+        init_Ts, waypoints, hpolys, **optimizer_args
+    )
+    print(time.time() - ddop_time)
+    print("Total:", time.time() - rrt_time)
+    if plot:
+        if dim == 3:
+            visualize_results_3d(opt, opt_hpolys, op_wp, bounds, obstacles, save_path="results/results_fw.png")
+            if interactive:
+                visualize_interactive(opt, opt_hpolys, op_wp, bounds, obstacles, save_path="results/results_fw.html")
+        elif dim == 2:
+            visualize_results(opt, opt_hpolys, op_wp, bounds, obstacles, save_path="results/results_fw.png")
 
     return opt, Ts, op_wp, opt_hpolys, obstacles, bounds
