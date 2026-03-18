@@ -59,25 +59,27 @@ def clip_hpoly(A, b, plane_point, plane_normal):
     return A_clipped, b_clipped
 
 
-def split_hpoly(hpoly, q_prev, q_next, pmargin=0.1):
+def split_hpoly(hpoly, q_prev, q_next, pmargin=0.1, split_point=None):
     A,b = hpoly
-    margin = min(pmargin, 0.25*np.linalg.norm(q_next-q_prev))
 
     q_prev = np.array(q_prev, dtype=float)
     q_next = np.array(q_next, dtype=float)
 
-    midpoint = (q_prev + q_next) / 2
+    if split_point is None:
+        split_point = (q_prev + q_next) / 2
+
     direction = q_next - q_prev
     length = np.linalg.norm(direction)
     direction = direction / length
+    margin = min(pmargin, 0.25 * length)
 
-    plane0_point = midpoint - margin * direction
-    plane1_point = midpoint + margin * direction
+    plane0_point = split_point - margin * direction
+    plane1_point = split_point + margin * direction
 
     A0, b0 = clip_hpoly(A, b, plane0_point, direction)
     A1, b1 = clip_hpoly(A, b, plane1_point, -direction)
 
-    return (A0, b0), (A1, b1), midpoint
+    return (A0, b0), (A1, b1), split_point
 
 
 def optimize_with_split(Ts_init, waypoints_init, hpolys_init, max_iterations=10,rho_t=32.0,rho_v=128.0, rho_a=128.0, pakka=1.0, **opt_args):
@@ -173,17 +175,21 @@ def check_piece_fw(opt, piece_idx, hpoly, v_max, a_max, v_min,
     slack = b - (A @ pos.T).T
 
     if np.any(slack < 0):
-        return False, 0
+        worst = np.unravel_index(np.argmin(slack), slack.shape)[0]
+        return False, 0, pos[worst]
 
     if np.max(vel_mag) > v_max * (1 + tol):
-        return False, 1
+        worst = np.argmax(vel_mag)
+        return False, 1, pos[worst]
 
     if np.max(acc_mag) > a_max * (1 + tol):
-        return False, 2
+        worst = np.argmax(acc_mag)
+        return False, 2, pos[worst]
 
     # Fixed-wing: minimum speed
     if np.min(vel_mag) < v_min * (1 - tol):
-        return False, 3
+        worst = np.argmin(vel_mag)
+        return False, 3, pos[worst]
 
     # Fixed-wing: lateral acceleration (turn radius)
     vel_mag_safe = np.maximum(vel_mag, 1e-10)
@@ -191,21 +197,19 @@ def check_piece_fw(opt, piece_idx, hpoly, v_max, a_max, v_min,
     a_lat_sq = acc_mag ** 2 - a_dot_v ** 2 / (vel_mag_safe ** 2)
     a_lat_sq = np.maximum(a_lat_sq, 0.0)
     if np.max(np.sqrt(a_lat_sq)) > a_lat_max * (1 + tol):
-        return False, 4
+        worst = np.argmax(a_lat_sq)
+        return False, 4, pos[worst]
 
     # Fixed-wing: flight path angle (3D only)
     if dim == 3 and (tan2_gamma_max is not None or tan2_gamma_min is not None):
         vz = vel[:, 2]
         vh_sq = vel[:, 0] ** 2 + vel[:, 1] ** 2
-        for k in range(num_samples):
-            if vz[k] > 0 and tan2_gamma_max is not None:
-                if vz[k] ** 2 > vh_sq[k] * tan2_gamma_max * (1 + tol):
-                    return False, 5
-            elif vz[k] < 0 and tan2_gamma_min is not None:
-                if vz[k] ** 2 > vh_sq[k] * tan2_gamma_min * (1 + tol):
-                    return False, 5
+        climb_violation = vz ** 2 - vh_sq * (np.where(vz > 0, tan2_gamma_max or 1e10, tan2_gamma_min or 1e10))
+        if np.max(climb_violation) > 0:
+            worst = np.argmax(climb_violation)
+            return False, 5, pos[worst]
 
-    return True, -1
+    return True, -1, None
 
 
 def check_all_pieces_fw(opt, hpolys, v_max, a_max, v_min, a_lat_max,
@@ -213,16 +217,16 @@ def check_all_pieces_fw(opt, hpolys, v_max, a_max, v_min, a_lat_max,
                         num_samples=50):
     violations = []
     for m in range(opt.M):
-        ok, type_ = check_piece_fw(opt, m, hpolys[m], v_max, a_max,
-                                   v_min, a_lat_max,
-                                   tan2_gamma_max, tan2_gamma_min,
-                                   num_samples)
+        ok, type_, viol_pos = check_piece_fw(opt, m, hpolys[m], v_max, a_max,
+                                              v_min, a_lat_max,
+                                              tan2_gamma_max, tan2_gamma_min,
+                                              num_samples)
         if not ok:
-            violations.append((m, type_))
+            violations.append((m, type_, viol_pos))
     return violations
 
 def optimize_with_split_fw(Ts_init, waypoints_init, hpolys_init,
-                           max_iterations=10, rho_t=32.0,
+                           max_iterations=100, rho_t=32.0,
                            rho_v=128.0, rho_a=128.0, pakka=1.0,
                            v_min=10.0, phi_max_deg=35.0,
                            gamma_max_deg=20.0, gamma_min_deg=-30.0,
@@ -267,6 +271,8 @@ def optimize_with_split_fw(Ts_init, waypoints_init, hpolys_init,
         )
         T_opt, wp_opt, cost = opt.run()
 
+        visualize_results(opt, hpolys, wp_opt, [], [], save_path=f'results/{_}.png')
+
         waypoints = [wp_opt[i] for i in range(len(wp_opt))]
         Ts = list(T_opt)
 
@@ -279,23 +285,25 @@ def optimize_with_split_fw(Ts_init, waypoints_init, hpolys_init,
             return opt, Ts, waypoints, hpolys
 
         # Separate split-worthy violations from penalty-only violations
-        # v_min (type 3): splitting makes it worse -> only increase penalty
-        split_violations = [(m, t) for m, t in violations if t != 3]
-        penalty_violations = [(m, t) for m, t in violations if t == 3]
+        # v_min (type 3): penalty only (split makes short segments worse)
+        # turn (type 4): split (adds waypoint so optimizer sees mid-segment constraint)
+        split_violations = [(m, t, p) for m, t, p in violations if t not in (3,)]
+        penalty_violations = [(m, t, p) for m, t, p in violations if t in (3,)]
 
-        # Increase penalty for all v_min violations without splitting
-        for m, _ in penalty_violations:
-            rho_vmin_list[m] = rho_vmin_list[m] * 2.0
-            print(f"  vmin penalty boost piece {m}: rho_vmin={rho_vmin_list[m]:.0f}")
+        # Increase penalty for v_min violations without splitting
+        for m, t, _ in penalty_violations:
+            if t == 3:
+                rho_vmin_list[m] *= 2.0
+                print(f"  vmin penalty boost piece {m}: rho_vmin={rho_vmin_list[m]:.0f}")
 
         # If only v_min violations remain, re-run with higher penalty (no split)
         if len(split_violations) == 0:
             continue
 
         if len(split_violations) > 1 and split_violations[0][0] == last_split:
-            piece_idx, violation_type = split_violations[1]
+            piece_idx, violation_type, viol_pos = split_violations[1]
         else:
-            piece_idx, violation_type = split_violations[0]
+            piece_idx, violation_type, viol_pos = split_violations[0]
         last_split = piece_idx
 
         print(piece_idx, violation_type)
@@ -303,11 +311,15 @@ def optimize_with_split_fw(Ts_init, waypoints_init, hpolys_init,
         q_prev = waypoints[piece_idx]
         q_next = waypoints[piece_idx + 1]
 
-        poly_0, poly_1, new_waypoint = split_hpoly(hpolys[piece_idx], q_prev, q_next, 0.5)
+        poly_0, poly_1, new_waypoint = split_hpoly(hpolys[piece_idx], q_prev, q_next, 0.5, split_point=viol_pos)
 
         waypoints.insert(piece_idx + 1, new_waypoint)
-        Ts.insert(piece_idx + 1, Ts[piece_idx] / 2)
-        Ts[piece_idx] = Ts[piece_idx] / 2
+        d_prev = np.linalg.norm(new_waypoint - q_prev)
+        d_next = np.linalg.norm(q_next - new_waypoint)
+        ratio = d_prev / max(d_prev + d_next, 1e-10)
+        T_orig = Ts[piece_idx]
+        Ts[piece_idx] = T_orig * ratio
+        Ts.insert(piece_idx + 1, T_orig * (1 - ratio))
 
         default_rho = 128.0
 
@@ -354,5 +366,7 @@ def optimize_with_split_fw(Ts_init, waypoints_init, hpolys_init,
 
         hpolys[piece_idx] = poly_1
         hpolys.insert(piece_idx + 1, poly_0)
+    else:
+        print("iter bitti")
 
     return opt, Ts, waypoints, hpolys
