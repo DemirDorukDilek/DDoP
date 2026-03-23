@@ -249,6 +249,8 @@ def optimize_with_split_fw(Ts_init, waypoints_init, hpolys_init,
     tan2_gamma_min = np.tan(np.radians(abs(gamma_min_deg))) ** 2
 
     last_split = -1
+    unsplittable = set()  # (piece_idx, type) pairs that failed split
+    rho_max = 1e6
     opt = None
     for _ in range(max_iterations):
 
@@ -292,81 +294,125 @@ def optimize_with_split_fw(Ts_init, waypoints_init, hpolys_init,
 
         # Increase penalty for v_min violations without splitting
         for m, t, _ in penalty_violations:
-            if t == 3:
-                rho_vmin_list[m] *= 2.0
+            if t == 3 and rho_vmin_list[m] < rho_max:
+                rho_vmin_list[m] = min(rho_vmin_list[m] * 2.0, rho_max)
                 print(f"  vmin penalty boost piece {m}: rho_vmin={rho_vmin_list[m]:.0f}")
 
         # If only v_min violations remain, re-run with higher penalty (no split)
         if len(split_violations) == 0:
             continue
 
-        if len(split_violations) > 1 and split_violations[0][0] == last_split:
-            piece_idx, violation_type, viol_pos = split_violations[1]
-        else:
-            piece_idx, violation_type, viol_pos = split_violations[0]
-        last_split = piece_idx
+        # Try to split, skipping violations where corridor is too narrow
+        split_done = False
+        for sv in split_violations:
+            piece_idx, violation_type, viol_pos = sv
+            if (piece_idx, violation_type) in unsplittable:
+                continue
 
-        print(piece_idx, violation_type)
+            q_prev = waypoints[piece_idx]
+            q_next = waypoints[piece_idx + 1]
 
-        q_prev = waypoints[piece_idx]
-        q_next = waypoints[piece_idx + 1]
+            try:
+                poly_0, poly_1, new_waypoint = split_hpoly(hpolys[piece_idx], q_prev, q_next, 0.5, split_point=viol_pos)
 
-        poly_0, poly_1, new_waypoint = split_hpoly(hpolys[piece_idx], q_prev, q_next, 0.5, split_point=viol_pos)
+                # Check that both sub-corridors contain their respective waypoints
+                A0, b0 = poly_0
+                A1, b1 = poly_1
+                if np.any(b0 - A0 @ q_prev < -1e-6) or np.any(b0 - A0 @ new_waypoint < -1e-6):
+                    raise ValueError("q_prev or new_waypoint outside poly_0")
+                if np.any(b1 - A1 @ new_waypoint < -1e-6) or np.any(b1 - A1 @ q_next < -1e-6):
+                    raise ValueError("new_waypoint or q_next outside poly_1")
+            except Exception as e:
+                print(f"  split skip piece {piece_idx} type {violation_type}: {e}")
+                unsplittable.add((piece_idx, violation_type))
+                # Fallback: just boost penalty instead (capped)
+                if violation_type == 4:
+                    rho_turn_list[piece_idx] = min(rho_turn_list[piece_idx] * 2.0, rho_max)
+                elif violation_type == 5:
+                    rho_climb_list[piece_idx] = min(rho_climb_list[piece_idx] * 2.0, rho_max)
+                elif violation_type == 0:
+                    pakka_list[piece_idx] = min(pakka_list[piece_idx] * 1.5, rho_max)
+                elif violation_type == 1:
+                    rho_v_list[piece_idx] = min(rho_v_list[piece_idx] * 1.5, rho_max)
+                elif violation_type == 2:
+                    rho_a_list[piece_idx] = min(rho_a_list[piece_idx] * 1.5, rho_max)
+                continue
 
-        waypoints.insert(piece_idx + 1, new_waypoint)
-        d_prev = np.linalg.norm(new_waypoint - q_prev)
-        d_next = np.linalg.norm(q_next - new_waypoint)
-        ratio = d_prev / max(d_prev + d_next, 1e-10)
-        T_orig = Ts[piece_idx]
-        Ts[piece_idx] = T_orig * ratio
-        Ts.insert(piece_idx + 1, T_orig * (1 - ratio))
+            last_split = piece_idx
+            split_done = True
+            print(piece_idx, violation_type)
 
-        default_rho = 128.0
+            waypoints.insert(piece_idx + 1, new_waypoint)
+            d_prev = np.linalg.norm(new_waypoint - q_prev)
+            d_next = np.linalg.norm(q_next - new_waypoint)
+            ratio = d_prev / max(d_prev + d_next, 1e-10)
+            T_orig = Ts[piece_idx]
+            Ts[piece_idx] = T_orig * ratio
+            Ts.insert(piece_idx + 1, T_orig * (1 - ratio))
 
-        if violation_type == 0:
-            pakka_list.insert(piece_idx + 1, pakka_list[piece_idx])
-            pakka_list[piece_idx] = pakka_list[piece_idx] * 1.5
-            rho_v_list.insert(piece_idx + 1, default_rho)
-            rho_a_list.insert(piece_idx + 1, default_rho)
-            rho_vmin_list.insert(piece_idx + 1, default_rho)
-            rho_turn_list.insert(piece_idx + 1, default_rho)
-            rho_climb_list.insert(piece_idx + 1, default_rho)
-        elif violation_type == 1:
-            rho_v_list.insert(piece_idx + 1, rho_v_list[piece_idx])
-            rho_v_list[piece_idx] = rho_v_list[piece_idx] * 1.5
-            pakka_list.insert(piece_idx + 1, 1.0)
-            rho_a_list.insert(piece_idx + 1, default_rho)
-            rho_vmin_list.insert(piece_idx + 1, default_rho)
-            rho_turn_list.insert(piece_idx + 1, default_rho)
-            rho_climb_list.insert(piece_idx + 1, default_rho)
-        elif violation_type == 2:
-            rho_a_list.insert(piece_idx + 1, rho_a_list[piece_idx])
-            rho_a_list[piece_idx] = rho_a_list[piece_idx] * 1.5
-            pakka_list.insert(piece_idx + 1, 1.0)
-            rho_v_list.insert(piece_idx + 1, default_rho)
-            rho_vmin_list.insert(piece_idx + 1, default_rho)
-            rho_turn_list.insert(piece_idx + 1, default_rho)
-            rho_climb_list.insert(piece_idx + 1, default_rho)
-        elif violation_type == 4:
-            rho_turn_list.insert(piece_idx + 1, rho_turn_list[piece_idx])
-            rho_turn_list[piece_idx] = rho_turn_list[piece_idx] * 1.5
-            pakka_list.insert(piece_idx + 1, 1.0)
-            rho_v_list.insert(piece_idx + 1, default_rho)
-            rho_a_list.insert(piece_idx + 1, default_rho)
-            rho_vmin_list.insert(piece_idx + 1, default_rho)
-            rho_climb_list.insert(piece_idx + 1, default_rho)
-        elif violation_type == 5:
-            rho_climb_list.insert(piece_idx + 1, rho_climb_list[piece_idx])
-            rho_climb_list[piece_idx] = rho_climb_list[piece_idx] * 1.5
-            pakka_list.insert(piece_idx + 1, 1.0)
-            rho_v_list.insert(piece_idx + 1, default_rho)
-            rho_a_list.insert(piece_idx + 1, default_rho)
-            rho_vmin_list.insert(piece_idx + 1, default_rho)
-            rho_turn_list.insert(piece_idx + 1, default_rho)
+            default_rho = 128.0
 
-        hpolys[piece_idx] = poly_1
-        hpolys.insert(piece_idx + 1, poly_0)
+            if violation_type == 0:
+                pakka_list.insert(piece_idx + 1, pakka_list[piece_idx])
+                pakka_list[piece_idx] = pakka_list[piece_idx] * 1.5
+                rho_v_list.insert(piece_idx + 1, default_rho)
+                rho_a_list.insert(piece_idx + 1, default_rho)
+                rho_vmin_list.insert(piece_idx + 1, default_rho)
+                rho_turn_list.insert(piece_idx + 1, default_rho)
+                rho_climb_list.insert(piece_idx + 1, default_rho)
+            elif violation_type == 1:
+                rho_v_list.insert(piece_idx + 1, rho_v_list[piece_idx])
+                rho_v_list[piece_idx] = rho_v_list[piece_idx] * 1.5
+                pakka_list.insert(piece_idx + 1, 1.0)
+                rho_a_list.insert(piece_idx + 1, default_rho)
+                rho_vmin_list.insert(piece_idx + 1, default_rho)
+                rho_turn_list.insert(piece_idx + 1, default_rho)
+                rho_climb_list.insert(piece_idx + 1, default_rho)
+            elif violation_type == 2:
+                rho_a_list.insert(piece_idx + 1, rho_a_list[piece_idx])
+                rho_a_list[piece_idx] = rho_a_list[piece_idx] * 1.5
+                pakka_list.insert(piece_idx + 1, 1.0)
+                rho_v_list.insert(piece_idx + 1, default_rho)
+                rho_vmin_list.insert(piece_idx + 1, default_rho)
+                rho_turn_list.insert(piece_idx + 1, default_rho)
+                rho_climb_list.insert(piece_idx + 1, default_rho)
+            elif violation_type == 4:
+                rho_turn_list.insert(piece_idx + 1, rho_turn_list[piece_idx])
+                rho_turn_list[piece_idx] = rho_turn_list[piece_idx] * 1.5
+                pakka_list.insert(piece_idx + 1, 1.0)
+                rho_v_list.insert(piece_idx + 1, default_rho)
+                rho_a_list.insert(piece_idx + 1, default_rho)
+                rho_vmin_list.insert(piece_idx + 1, default_rho)
+                rho_climb_list.insert(piece_idx + 1, default_rho)
+            elif violation_type == 5:
+                rho_climb_list.insert(piece_idx + 1, rho_climb_list[piece_idx])
+                rho_climb_list[piece_idx] = rho_climb_list[piece_idx] * 1.5
+                pakka_list.insert(piece_idx + 1, 1.0)
+                rho_v_list.insert(piece_idx + 1, default_rho)
+                rho_a_list.insert(piece_idx + 1, default_rho)
+                rho_vmin_list.insert(piece_idx + 1, default_rho)
+                rho_turn_list.insert(piece_idx + 1, default_rho)
+
+            hpolys[piece_idx] = poly_1
+            hpolys.insert(piece_idx + 1, poly_0)
+            break  # one split per iteration
+
+        if not split_done and len(penalty_violations) == 0:
+            print("  no viable split remaining, stopping")
+            break
     else:
         print("iter bitti")
+
+    # Final validation
+    final_violations = check_all_pieces_fw(
+        opt, hpolys, opt.v_max, opt.a_max,
+        v_min, a_lat_max, tan2_gamma_max, tan2_gamma_min
+    )
+    if final_violations:
+        print("remaining violations:")
+        for m, t, _ in final_violations:
+            print(f"  ({m}, {t})")
+    else:
+        print("no violations")
 
     return opt, Ts, waypoints, hpolys

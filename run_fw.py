@@ -7,7 +7,7 @@ optimal_traj_fw(
     plot=True, interactive=True,
     rrt_args={"max_iter": 1_000_000, "step_size": 10.0},
     optimizer_args={
-        "v_min": 8.0,
+        "v_min": 15.0,
         "v_max": 50.0,
         "a_max": 20.0,
         "phi_max_deg": 35.0,

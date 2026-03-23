@@ -48,6 +48,11 @@ class DDoPnDFixedWing(DDoPnD):
                         v_init, v_final)
         self.save_fw_opt_args = opt_args.copy()
 
+    def gg(self,x):
+        return np.power((x if x > 0 else x/2),3)
+    def dggdx(self,x):
+        return 3*np.power((x if x > 0 else x/2),2)*(1 if x > 0 else 1/2)
+
     def _setup_boundary_velocities(self, v_init, v_final):
         wp = self.waypoints
 
